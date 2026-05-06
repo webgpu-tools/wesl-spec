@@ -399,16 +399,9 @@ is silent, produces a warning, or produces an error.
 4. package names
 5. predeclared items (WGSL builtins)
 
-Package names can shadow predeclared items, but we recommend that authors avoid
-doing that.
-
-## Forward compatibility with WGSL predeclared identifiers
-
-Predeclared items have the lowest priority in scope resolution (see
-[Scope precedence](#scope-precedence)). WGSL can add new predeclared items in
-future spec revisions without breaking existing WESL code: any name already
-bound by a user declaration, named import, wildcard import, or package continues
-to resolve as before.
+Predeclared items rank lowest so that future WGSL spec revisions can add new
+builtins without breaking existing WESL code: any name already bound at a
+higher level continues to resolve as before.
 
 ## Directives
 Under discussion, see: <https://github.com/wgsl-tooling-wg/wesl-spec/issues/71>
