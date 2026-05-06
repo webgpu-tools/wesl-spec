@@ -401,7 +401,7 @@ is referenced.
   intentional; the suppression itself documents documents to readers that the
   builtins have changed semantics.
 
-### Scope precedence
+## Scope precedence
 
 When a name could resolve to items at multiple precedence levels, the
 highest-precedence one wins. The table above describes whether such a resolution
