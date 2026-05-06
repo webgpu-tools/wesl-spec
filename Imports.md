@@ -268,10 +268,21 @@ Basic linker implementations do not need to check for this. Generating broken co
 Wildcard imports bring all items from another module into the importing module's
 scope.
 
-By default, users can wildcard import:
-- from any other module in the local package, and
+Users can wildcard import:
+- from any other module in the local package.
 - from any external library module where the library author has added a
   `@wildcardable` directive.
+
+Wildcard importing brings some stability risk when the imported module adds to
+its API. The newly introduced names may conflict with other names in the
+importer's namespace (from local definitions and other imports), leading to
+compiler warnings or errors. To help mitigate this risk, WESL provides a
+`@wildcardable` annotation that library authors can place on modules that are
+designed for wildcard importing.
+
+Advanced users who wish to wildcard import from external modules not marked as
+`@wildcardable` can do so by annotating the import statement with
+`@diagnostic(off, wildcard_import)`, accepting some additional upgrade risk.
 
 ```wesl
 // wildcard import from a @wildcardable external
@@ -282,11 +293,6 @@ import wgsl_test::prelude::*;
 import package::utils::*;
 import super::fun::*;
 ```
-
-Advanced users who wish to import from external package modules that are not
-marked as `@wildcardable` can annotate the import statement with
-`@diagnostic(off, wildcard_import)`, accepting the increased risk of name
-clashes if the upstream module adds items in a future version.
 
 ### `@wildcardable` directive
 
@@ -307,20 +313,19 @@ to the module it appears in.
 
 ### Recommendations for `@wildcardable` modules
 
-**Curate carefully.** A `@wildcardable` module is a public API contract in a
-shared namespace. Every item you add is one your downstream users may collide
-with.
+Because every name in a `@wildcardable` module is a potential collision in
+importer code, library authors should curate these modules carefully.
+
+**Add hesitantly.** Additions to a `@wildcardable` module are semver minor
+version bumps but can break users who have local declarations or import other
+`@wildcardable` modules.
+- **Bundle** additions into a major release when one is upcoming.
+- **Document** additions clearly in changelogs so downstream users debugging
+  unexpected name resolution can trace them.
 
 **Compose with re-exports.** See [Re-exports](#re-exports) (TBD) to collect
 items from other modules into a single `@wildcardable` module for user
 convenience.
-
-**Add hesitantly.** Additions to a `@wildcardable` module are semver minor
-version bumps but can break users who have local declarations or import other
-preludes.
-- **Bundle** additions into a major release when one is upcoming.
-- **Document** additions clearly in changelogs so downstream users debugging
-  unexpected name resolution can trace them.
 
 **Avoid generic names.** Prefer domain-specific names. Common names like
 `Buffer`, `Config`, `Result`, `Vec`, etc. are more likely to collide with user
