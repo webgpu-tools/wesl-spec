@@ -343,7 +343,7 @@ Libraries that wildcard import from other libraries raise special concerns. If a
 user's package manager chooses a newer version of the imported-from library,
 the user may see a conflict in library code they don't expect to modify.
 
-WESL library publishing tools will address this by expanding wildcards to named
+WESL library publishing tools address this by expanding wildcards to named
 imports in the published version of the module:
 
 ```wesl
@@ -355,9 +355,6 @@ import bevy::prelude::*;
 // published artifact
 import bevy::prelude::{Color, Mesh, Transform, /* snapshot at publish time */};
 ```
-
-Until WESL packaging tools implement this expansion, library authors should
-avoid wildcard imports from external libraries they don't control.
 
 ## Import errors and warnings
 
