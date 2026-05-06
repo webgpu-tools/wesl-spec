@@ -334,9 +334,6 @@ applications.
 **Don't shadow WGSL builtins.** Names like `vec3`, `clamp`, `inverseSqrt` have
 expected semantics that oughtn't be implicitly overridden with wildcards.
 Similarly, avoid experimental Naga/Dawn/Safari builtins.
-- WESL publishing tools should warn when a `@wildcardable` module exports an
-  item that shadows a WGSL builtin. Suppress with
-  `@diagnostic(off, builtin_shadow)` if the shadow is intentional.
 - If a future WGSL update adds a conflicting builtin name, plan to update the
   `@wildcardable` module to rename the conflicting item.
 
@@ -367,8 +364,7 @@ avoid wildcard imports from external libraries they don't control.
 WESL emits errors for name collisions and for external wildcards from unmarked
 modules, and warnings for shadowing that could surprise readers. Genuine
 collisions cannot be suppressed; other diagnostics are suppressible via
-`@diagnostic`. (The table below covers compile-time diagnostics; publish-time
-diagnostics are introduced in the relevant subsections.)
+`@diagnostic`.
 
 | Situation | Behavior |
 | --- | --- |
@@ -377,6 +373,7 @@ diagnostics are introduced in the relevant subsections.)
 | Wildcard import conflicts with wildcard import (when name is referenced) | Error |
 | Wildcard import from a non-`@wildcardable` external module | Error (`wildcard_import`); suppressible |
 | Local declaration or named import shadows a wildcard-imported name | Warning (`wildcard_shadow`); suppressible |
+| Wildcard import shadows a WGSL builtin | Warning (`builtin_shadow`); suppressible |
 
 When multiple wildcard imports are in scope, the same name may be exported by
 more than one module:
