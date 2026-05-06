@@ -281,8 +281,8 @@ compiler warnings or errors. To help mitigate this risk, WESL provides a
 designed for wildcard importing.
 
 Advanced users who wish to wildcard import from external modules not marked as
-`@wildcardable` can do so by annotating the import statement with
-`@diagnostic(off, wildcard_import)`, accepting some additional upgrade risk.
+`@wildcardable` can do so by suppressing `wildcard_import` (see
+[Suppressible diagnostics](#suppressible-diagnostics)).
 
 ```wesl
 // wildcard import from a @wildcardable external
@@ -333,7 +333,8 @@ applications.
 
 **Don't shadow WGSL builtins.** Names like `vec3`, `clamp`, `inverseSqrt` have
 expected semantics that oughtn't be implicitly overridden with wildcards.
-Similarly, avoid experimental Naga/Dawn/Safari builtins.
+Similarly, avoid experimental Naga/Dawn/Safari builtins. Consumers of the
+module will see a `builtin_shadow` warning at the import site.
 - If a future WGSL update adds a conflicting builtin name, plan to update the
   `@wildcardable` module to rename the conflicting item.
 
@@ -383,6 +384,22 @@ import bar::*; // exports clashing_zap
 If `foo::clashing_zap` and `bar::clashing_zap` re-export the same item, there's
 no conflict. Otherwise the potential conflict is dormant unless `clashing_zap`
 is referenced.
+
+### Suppressible diagnostics
+
+- **`wildcard_import`** fires on a wildcard import from an external module not
+  marked `@wildcardable`. Suppress with `@diagnostic(off, wildcard_import)` on
+  the import statement to accept the upgrade risk that future versions of the
+  imported module may add conflicting names.
+
+- **`wildcard_shadow`** fires when a local declaration or named import shadows a
+  name brought in by a wildcard import. The local wins by precedence (see
+  [Scope precedence](#scope-precedence)).
+
+- **`builtin_shadow`** fires when a wildcard import shadows a WGSL builtin such
+  as `vec3` or `clamp`. Suppress at the import site if the override is
+  intentional; the suppression itself documents documents to readers that the
+  builtins have changed semantics.
 
 ### Scope precedence
 
