@@ -333,8 +333,12 @@ applications.
 
 **Don't shadow WGSL builtins.** Names like `vec3`, `clamp`, `inverseSqrt` have
 expected semantics that oughtn't be implicitly overridden with wildcards.
-Similarly, avoid experimental Naga/Dawn/Safari builtins. Consumers of the
-module will see a `builtin_shadow` warning at the import site.
+Similarly, avoid experimental Naga/Dawn/Safari builtins.
+- WESL publishing tools should warn when a `@wildcardable` module exports an
+  item that shadows a WGSL builtin. Suppress with
+  `@diagnostic(off, builtin_shadow)` if the shadow is intentional.
+- Consumers of the module will also see a `builtin_shadow` warning at the
+  import site.
 - If a future WGSL update adds a conflicting builtin name, plan to update the
   `@wildcardable` module to rename the conflicting item.
 
@@ -371,7 +375,7 @@ collisions cannot be suppressed; other diagnostics are suppressible via
 | Wildcard import conflicts with wildcard import (when name is referenced) | Error |
 | Wildcard import from a non-`@wildcardable` external module | Error (`wildcard_import`); suppressible |
 | Local declaration or named import shadows a wildcard-imported name | Warning (`wildcard_shadow`); suppressible |
-| Wildcard import shadows a WGSL builtin | Warning (`builtin_shadow`); suppressible |
+| Wildcard import shadows a WGSL builtin (when name is referenced) | Warning (`builtin_shadow`) on the import; suppressible |
 
 When multiple wildcard imports are in scope, the same name may be exported by
 more than one module:
@@ -396,10 +400,11 @@ is referenced.
   name brought in by a wildcard import. The local wins by precedence (see
   [Scope precedence](#scope-precedence)).
 
-- **`builtin_shadow`** fires when a wildcard import shadows a WGSL builtin such
+- **`builtin_shadow`** fires on a wildcard import when a referenced name in the
+  module resolves to a wildcard-imported item that shadows a WGSL builtin such
   as `vec3` or `clamp`. Suppress at the import site if the override is
-  intentional; the suppression itself documents documents to readers that the
-  builtins have changed semantics.
+  intentional; the suppression itself documents to readers that the builtins
+  have changed semantics.
 
 ## Scope precedence
 
