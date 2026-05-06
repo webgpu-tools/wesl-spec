@@ -423,8 +423,13 @@ is silent, produces a warning, or produces an error.
 5. predeclared items (WGSL builtins)
 
 Predeclared items rank lowest so that future WGSL spec revisions can add new
-builtins without breaking existing WESL code: any name already bound at a
-higher level continues to resolve as before.
+builtins without breaking existing shaders: any name already bound at a higher
+level continues to resolve as before. Wildcard-imported names rank below user
+declarations and named imports for the analogous reason: additions to a
+`@wildcardable` module won't silently change resolution at call sites that
+already have a local or named binding for the same name. Wildcard imports do not
+bring in package names (only top-level declarations of the imported module), so
+a wildcard cannot shadow a package.
 
 ## Directives
 Under discussion, see: <https://github.com/wgsl-tooling-wg/wesl-spec/issues/71>
