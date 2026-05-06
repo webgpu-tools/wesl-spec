@@ -25,7 +25,7 @@ import bevy_ui;
 
 // Import all items from another module
 import bevy::prelude::*;
-import wgsl_test::prelude::*;
+import wgsl_test::expect::*;
 ```
 
 These can then be used anywhere in the source code.
@@ -287,7 +287,7 @@ Advanced users who wish to wildcard import from external modules not marked as
 ```wesl
 // wildcard import from a @wildcardable external
 import bevy::prelude::*;
-import wgsl_test::prelude::*;
+import wgsl_test::expect::*;
 
 // wildcard import from within the local package
 import package::utils::*;
