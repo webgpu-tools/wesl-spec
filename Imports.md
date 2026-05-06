@@ -378,16 +378,20 @@ collisions cannot be suppressed; other diagnostics are suppressible via
 | Wildcard import shadows a WGSL builtin (when name is referenced) | Warning (`builtin_shadow`) on the import; suppressible |
 
 When multiple wildcard imports are in scope, the same name may be exported by
-more than one module:
+more than one module. The potential conflict is dormant unless the name is
+referenced; referencing it is an error:
 
 ```wesl
 import foo::*; // exports clashing_zap
-import bar::*; // exports clashing_zap
+import bar::*; // exports a different clashing_zap
+
+fn main() {
+    let x = clashing_zap(); // error: ambiguous between foo::clashing_zap and bar::clashing_zap
+}
 ```
 
-If `foo::clashing_zap` and `bar::clashing_zap` re-export the same item, there's
-no conflict. Otherwise the potential conflict is dormant unless `clashing_zap`
-is referenced.
+The fix is to disambiguate with a named import (`import foo::clashing_zap;`) or
+[inline module path](#inline-usage) (`foo::clashing_zap()`).
 
 ### Suppressible diagnostics
 
