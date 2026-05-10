@@ -70,7 +70,7 @@ translation_unit:
 | import_statement* global_directive* global_decl* 
 
 import_statement:  
-| 'import' import_relative? (import_collection | import_path_or_item) ';'  
+| attribute* 'import' import_relative? (import_collection | import_path_or_item) ';'  
 
 import_relative:
 | 'package' '::' | 'super' '::' ('super' '::')*
@@ -86,7 +86,7 @@ import_collection:
 
 Where `translation_unit` and `ident` are defined in the WGSL grammar.
 `ident`s must not be current WGSL keywords. `ident`s also must not be 
-current WESL keywords: `as`, `import`, `package`, `super`, or `self`. 
+current WESL keywords: `as`, `import`, `module`, `package`, `super`, or `self`. 
 Reserved words that are
 not current keywords are allowed, 
 but not recommended.
@@ -98,18 +98,16 @@ An import collection imports multiple items, and allows for nested imports.
 
 A wildcard import imports all top-level declarations from a module. Submodule names and submodule contents are not imported.
 
-WESL also extends WGSL's `global_directive` rule with a `module_attribute` form (used by `@wildcardable`; see [Wildcard imports](#wildcard-imports)):
+WESL also extends WGSL's `global_directive` rule with a `module_declaration` form, used by `@wildcardable` (see [Wildcard imports](#wildcard-imports)) and reserved for future module-level metadata. `attribute` is the WGSL attribute rule.
 
 ```ebnf
 global_directive:
 | ... // existing WGSL forms
-| module_attribute
+| module_declaration
 
-module_attribute:
-| '@' ident ';'
+module_declaration:
+| attribute* 'module' ';'
 ```
-
-The `@` prefix avoids conflict with WGSL identifiers.
 
 ### Import resolution algorithm
 
@@ -271,7 +269,7 @@ scope.
 Users can wildcard import:
 - from any other module in the local package.
 - from any external library module where the library author has added a
-  `@wildcardable` directive.
+  `@wildcardable` annotation.
 
 Wildcard importing brings some stability risk when the imported module adds to
 its API. The newly introduced names may conflict with other names in the
@@ -294,22 +292,22 @@ import package::utils::*;
 import super::fun::*;
 ```
 
-### `@wildcardable` directive
+### `@wildcardable` annotation
 
 Library authors mark modules they intend for library consumers to wildcard
-import with `@wildcardable`:
+import with `@wildcardable module;`:
 
 ```wesl
 // math.wesl  (in a library)
-@wildcardable;
+@wildcardable module;
 
 fn dot2(a: vec2f, b: vec2f) -> f32 { return a.x*b.x + a.y*b.y; }
 fn cross2(a: vec2f, b: vec2f) -> f32 { return a.x*b.y - a.y*b.x; }
 ```
 
-`@wildcardable` is a module attribute (see [Grammar](#grammar)). It must
-appear after any imports and before any global declarations, and applies only
-to the module it appears in.
+`@wildcardable` is an attribute on a module declaration (see [Grammar](#grammar)).
+The module declaration must appear after any imports and before any global
+declarations, and applies only to the module it appears in.
 
 ### Recommendations for `@wildcardable` modules
 
