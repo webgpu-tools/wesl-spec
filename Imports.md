@@ -336,7 +336,9 @@ expected semantics that oughtn't be implicitly overridden with wildcards.
 Similarly, avoid experimental Naga/Dawn/Safari builtins.
 - WESL publishing tools should warn when a `@wildcardable` module exports an
   item that shadows a WGSL builtin. Suppress with
-  `@diagnostic(off, builtin_shadow)` in the module if the shadow is intentional.
+  `@diagnostic(off, builtin_shadow)` if the shadow is intentional.
+- Consumers of the module will also see a `builtin_shadow` warning at the
+  import site.
 - If a future WGSL update adds a conflicting builtin name, plan to update the
   `@wildcardable` module to rename the conflicting item.
 
@@ -373,6 +375,7 @@ collisions cannot be suppressed; other diagnostics are suppressible via
 | Wildcard import conflicts with wildcard import (when name is referenced) | Error |
 | Wildcard import from a non-`@wildcardable` external module | Error (`wildcard_import`); suppressible |
 | Local declaration or named import shadows a wildcard-imported name | Warning (`wildcard_shadow`); suppressible |
+| Wildcard import shadows a WGSL builtin (when name is referenced) | Warning (`builtin_shadow`) on the import; suppressible |
 
 When multiple wildcard imports are in scope, the same name may be exported by
 more than one module. The potential conflict is dormant unless the name is
@@ -399,13 +402,13 @@ The fix is to disambiguate with a named import (`import foo::clashing_zap;`) or
 
 - **`wildcard_shadow`** fires when a local declaration or named import shadows a
   name brought in by a wildcard import. The local wins by precedence (see
-  [Scope precedence](#scope-precedence)). Suppress with
-  `@diagnostic(off, wildcard_shadow)` on the shadowing declaration or import.
+  [Scope precedence](#scope-precedence)).
 
-- **`builtin_shadow`** fires in WESL publishing tools when a `@wildcardable`
-  module exports an item that shadows a WGSL builtin such as `vec3` or `clamp`.
-  Suppress with `@diagnostic(off, builtin_shadow)` in the module if the override
-  is intentional.
+- **`builtin_shadow`** fires on a wildcard import when a referenced name in the
+  module resolves to a wildcard-imported item that shadows a WGSL builtin such
+  as `vec3` or `clamp`. Suppress at the import site if the override is
+  intentional; the suppression itself documents to readers that the builtins
+  have changed semantics.
 
 ## Scope precedence
 
