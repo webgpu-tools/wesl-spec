@@ -32,7 +32,7 @@ Rust permit them syntactically but discourage broad use by convention; Rust's
 `prelude` modules are one curated pattern in that style. The general concerns
 are practical:
 
-- **Readability.** Direct imports make it obvious where a name comes from.
+- **Traceability.** Direct imports make it obvious where a name comes from.
   Wildcards push that work onto the reader, the language server, or the
   compiler's name-resolution diagnostics.
 - **API stability.** Adding a public item to a wildcard-imported module can
