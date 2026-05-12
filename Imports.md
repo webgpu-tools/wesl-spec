@@ -109,6 +109,8 @@ module_declaration:
 | attribute* 'module' ';'
 ```
 
+A file may have at most one `module` declaration.
+
 ### Import resolution algorithm
 
 To resolve the import, the recursive structure is flattened out. This means turning every `import_collection` into multiple separate imports, ending with the items.
