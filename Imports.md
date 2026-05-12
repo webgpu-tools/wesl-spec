@@ -70,7 +70,7 @@ translation_unit:
 | import_statement* global_directive* global_decl* 
 
 import_statement:  
-| attribute* 'import' import_relative? (import_collection | import_path_or_item) ';'  
+| attribute* 'public'? 'import' import_relative? (import_collection | import_path_or_item) ';'
 
 import_relative:
 | 'package' '::' | 'super' '::' ('super' '::')*
@@ -85,8 +85,8 @@ import_collection:
 ```
 
 Where `translation_unit` and `ident` are defined in the WGSL grammar.
-`ident`s must not be current WGSL keywords. `ident`s also must not be 
-current WESL keywords: `as`, `import`, `module`, `package`, `super`, or `self`. 
+`ident`s must not be current WGSL keywords. `ident`s also must not be
+current WESL keywords: `as`, `import`, `module`, `package`, `private`, `public`, `self`, or `super`.
 Reserved words that are
 not current keywords are allowed, 
 but not recommended.
@@ -97,6 +97,9 @@ An item import imports a single item. The item can be renamed with the `as` keyw
 An import collection imports multiple items, and allows for nested imports.
 
 A wildcard import imports all top-level declarations from a module. Submodule names and submodule contents are not imported.
+
+The optional `public` prefix also re-exports the imported names under the importing module's path; see
+[Visibility.md](Visibility.md).
 
 WESL also extends WGSL's `global_directive` rule with a `module_declaration` form, used by `@wildcardable` (see [Wildcard imports](#wildcard-imports)) and reserved for future module-level metadata. `attribute` is the WGSL attribute rule.
 
@@ -125,22 +128,18 @@ import a::c::e as f;
 Then, one iterates over each segment from left to right, and looks it up one by one.
 
 1. We start with the first segment.
-    * `super` refers to the parent module. Can be repeated to go up multiple parent modules. Exiting the root is an error.
     * `package` refers to the top level module of the current package.
+    * `super` refers to the parent module, so `super::sibling` reaches a module alongside the current one. Can be repeated to climb further; climbing out of the current package is an error.
     * `ident` must be a known package, usually found in the `wesl.toml` file. It refers to the top level module of that package.
 2. We take that as the "current module".
 3. We repeatedly look at the next segment.
-    1. Item in current module: Take that item. We must be at the last segment, otherwise it's an error.
+    1. Item in current module (declared or re-exported via `public import`): Take that item. We must be at the last segment, otherwise it's an error.
     2. Wildcard import: Take all items in the current module.
-    3. (Else if re-exported or inline module in current module: We continue with that module.)
-    4. Else go to `current module path/ident.wesl`
+    3. Else go to `current module path/ident.wesl` (or `.wgsl` if `.wesl` is not found)
        * File found: We take that file as the current module.
        * File not found: We assume an empty module as the current module, and continue with that.
-       * (Re-exporting changes the path.)
-       * (Inline modules do not have a path.)
 
-To get an absolute path to a module, one follows the algorithm above. In step 1, one takes the known absolute path of the `super` module, or the package.
-The absolute path of the `super` module is always known, since the first loaded WESL file must always be the root module, and children are only discovered from there.
+The steps above resolve a path; whether the referencing module may then use the result is governed by [visibility](Visibility.md).
 
 Once the import has been resolved, the last segment, or its `as` alias, is brought into scope.
 
@@ -174,10 +173,22 @@ The [`wesl.toml`](WeslToml.md) file provides linker configuration options affect
 * A file whitelist and/or blacklist.
 
 ## Filesystem Resolution
-To resolve a module on a filesystem, one follows the algorithm above.
-The root folder, or the root module, needs to be provided to the linker. This is currently a linker-specific API, and may change once we introduce a `wesl.toml`.
 
-Linkers should fall back to `.wgsl` files when a `.wesl` file cannot be found.
+To resolve a module on a filesystem, one follows the [import resolution
+algorithm](#import-resolution-algorithm). It traces a path from a known starting
+directory (a package's root directory, or for `super` an enclosing directory of
+the current module) through any subdirectories to the module's `.wesl` or
+`.wgsl` file. The starting directory is always known: each module's path is
+fixed relative to its package's root directory, which the linker takes from a
+`wesl.toml` file or its own configuration.
+
+### `package.wesl`
+
+`package.wesl` is the file backing a package's top-level module, placed at the
+package's root directory. Items declared in or `public import`ed from
+`package.wesl` are reachable as `<package>::item`.
+
+### Reserved file names
 
 Due to filesystem limitations, it can happen that WESL idents are invalid file or folder names.
 Notable examples are `CON, PRN, AUX, NUL, COM1 - COM9, LPT1 - LPT9` on Windows, and Windows being case-insensitive.
@@ -323,7 +334,7 @@ version bumps but can break users who have local declarations or import other
 - **Document** additions clearly in changelogs so downstream users debugging
   unexpected name resolution can trace them.
 
-**Compose with re-exports.** See [Re-exports](#re-exports) (TBD) to collect
+**Compose with re-exports.** See [Re-exports](Visibility.md#re-exports) to collect
 items from other modules into a single `@wildcardable` module for user
 convenience.
 
@@ -486,11 +497,6 @@ See [Name Mangling](./NameMangling.md)
 Linkers may choose to do dead code elimination, but it is a non-observable implementation detail.
 
 `const_assert` statements inside of functions need special treatment, see relevant section.
-
-## Visibility
-Everything is public by default.
-
-Future proposals will introduce visibility (privacy) for items and/or modules.
 
 # Drawbacks
 Are there reasons as to why we should not do this?
