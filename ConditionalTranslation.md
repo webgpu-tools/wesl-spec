@@ -114,7 +114,7 @@ Refer to the [updated grammar appendix](#appendix-updated-grammar) for the list 
    * const assertion statements
 
 > [!WARNING]
-> We added attributes on assignment and increment/decrement statements. This change makes the WESL grammar no longer [LR(1)](https://en.wikipedia.org/wiki/LR_parser). See [`wesl-rs#162`](https://github.com/wgsl-tooling-wg/wesl-rs/issues/162) for details.
+> We added attributes on assignment and increment/decrement statements. This change makes the WESL grammar no longer [LR(1)](https://en.wikipedia.org/wiki/LR_parser). See [`wesl-rs#162`](https://github.com/webgpu-tools/wesl-rs/issues/162) for details.
 >
 > Due to this limitation, *wesl-rs* does not allow attributes on assignment, increment and decrement statements starting with a `(`. Concretely, this is not supported by *wesl-rs*: `@if(FOO) (x)++`.
 

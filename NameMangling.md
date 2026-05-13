@@ -14,7 +14,7 @@ See also renaming host visible names in [Visibility](./Visibility.md).
 ## What gets mangled
 All declaration identifiers get mangled, except:
 
-* root module declarations (this is being discussed, see <https://github.com/wgsl-tooling-wg/wesl-js/issues/98>)
+* root module declarations (this is being discussed, see <https://github.com/webgpu-tools/wesl-js/issues/98>)
 * declarations imported in the root module
   * if the import renames the declaration (using the `import foo as bar` syntax), the declaration is renamed.
   * if the import is a module (`import some::module` where `some/module.wesl` exists) it does not affect mangling.
