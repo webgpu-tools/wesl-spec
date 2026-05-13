@@ -371,8 +371,8 @@ collisions cannot be suppressed; other diagnostics are suppressible via
 | Local declaration conflicts with named import | Error |
 | Named import conflicts with named import | Error |
 | Wildcard import conflicts with wildcard import (when name is referenced) | Error |
-| Wildcard import from a non-`@wildcardable` external module | Error (`wildcard_import`); suppressible |
-| Local declaration or named import shadows a wildcard-imported name | Warning (`wildcard_shadow`); suppressible |
+| Wildcard import from a non-`@wildcardable` external module | Error (`wildcard_import`) on the import; suppressible |
+| Local declaration or named import shadows a wildcard-imported name | Warning (`wildcard_shadow`) on the shadowing declaration; suppressible |
 
 When multiple wildcard imports are in scope, the same name may be exported by
 more than one module. The potential conflict is dormant unless the name is
