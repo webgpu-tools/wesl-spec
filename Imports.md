@@ -397,10 +397,11 @@ The fix is to disambiguate with a named import (`import foo::clashing_zap;`) or
   the import statement to accept the upgrade risk that future versions of the
   imported module may add conflicting names.
 
-- **`wildcard_shadow`** fires when a local declaration or named import shadows a
-  name brought in by a wildcard import. The local wins by precedence (see
-  [Scope precedence](#scope-precedence)). Suppress with
-  `@diagnostic(off, wildcard_shadow)` on the shadowing declaration or import.
+- **`wildcard_shadow`** fires on a local declaration or named import that
+  shadows a name brought in by a wildcard import. The local wins by precedence
+  (see [Scope precedence](#scope-precedence)). Suppress with
+  `@diagnostic(off, wildcard_shadow)` on that shadowing declaration or import
+  statement.
 
 - **`builtin_shadow`** fires in WESL publishing tools when a `@wildcardable`
   module exports an item that shadows a WGSL builtin such as `vec3` or `clamp`.
