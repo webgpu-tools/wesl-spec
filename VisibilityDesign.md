@@ -7,7 +7,7 @@ normative spec lives in [Visibility.md](Visibility.md).
 * [Why three levels and not two](#why-three-levels-and-not-two)
 * [Why three levels and not four or more](#why-three-levels-and-not-four-or-more)
 * [Why package by default?](#why-package-by-default)
-* [Why not `pub`, `export`, or capitalization?](#why-not-pub-export-or-capitalization)
+* [Why `@public` and `@private`?](#why-public-and-private)
 * [Why re-exports cannot widen](#why-re-exports-cannot-widen)
 * [Why wildcard re-export reuses the wildcard-import rule](#why-wildcard-re-export-reuses-the-wildcard-import-rule)
 * [Future possibilities](#future-possibilities)
@@ -38,10 +38,10 @@ package-private (default), Scala's `private[pkg]`, Swift's `package` (5.9).
 Kotlin, Slang, and Swift also offer `internal` at their compilation-unit
 granularity (Kotlin module, Swift module, Slang module). Languages that stop at
 two keyword levels often recover the third structurally: Go's `internal/`
-directories restrict a subtree to its enclosing package, and TypeScript
-packages routinely keep a curated public entry point (an `exports` map plus a
-barrel `index.ts`) distinct from the modules they `export` for cross-file use
-but never re-export.
+directories restrict a subtree to its enclosing package, and TypeScript packages
+routinely keep a curated public entry point (an `exports` map plus a barrel
+`index.ts`) distinct from the modules they `export` for cross-file use but never
+re-export.
 
 ## Why three levels and not four or more
 
@@ -57,7 +57,7 @@ WESL stops at three because:
   boundary.** "What's part of my external API" and "what's an implementation
   detail of this module" are decisions every author makes. Levels in between are
   nice to have in large codebases but not essential.
-* **Less for authors to learn.** Two keywords (`public`, `private`) plus an
+* **Less for authors to learn.** Two attributes (`@public`, `@private`) plus an
   unannotated default. An author can hold the whole visibility model in their
   head without referring back to docs.
 
@@ -76,8 +76,8 @@ structs as part of the library's external API. Refactors that rename or remove
 an unmarked helper become breaking changes for downstream callers.
 
 Second, ceremony lands on the wrong case. Most items in a library aren't part of
-the external API, so the author would have to write `private` in the common case
-instead of `public` on the rare case.
+the external API, so the author would have to write `@private` in the common
+case instead of `@public` on the rare case.
 
 ### Why not private by default?
 
@@ -97,7 +97,7 @@ toward package as the default:
   types, constants). With private as the default, every author would have to
   mark those items explicitly, even authors who don't otherwise care about
   encapsulation. Package as the default makes encapsulation discipline available
-  to projects that want it (via `private`), without forcing typical small
+  to projects that want it (via `@private`), without forcing typical small
   projects to do the extra work.
 
 * **WGSL files can be imported without modification.** WGSL has no visibility
@@ -116,36 +116,72 @@ toward package as the default:
 * **Root module entry points would need explicit markers.** A root module's
   entry points, resource variables, and overrides reach the host only when
   non-private (see [Visibility.md](Visibility.md)). With private as the default,
-  every one would need a visibility keyword. A plain `.wgsl` file used as the
+  every one would need a visibility marker. A plain `.wgsl` file used as the
   root wouldn't work, it would expose nothing to the host. WESL could give root
   modules a different default to avoid this, but then the root behaves unlike
-  every other module. With package as the default,
-  `@fragment fn frag_main(...)` at root is pipeline-visible with no keyword,
-  and only `private` changes anything at root.
+  every other module. With package as the default, `@fragment fn frag_main(...)`
+  at root is pipeline-visible with no extra annotation, and only `@private`
+  changes anything at root.
 
 ### Package by default
 
 Package as the default keeps the external API explicit while leaving internal
-sharing free. The `public` marker stays meaningful and rare, so internal helpers
-don't accidentally leak as part of the external API. Authors aren't forced to
-make visibility decisions on every cross-file use, and plain WGSL files
-participate without modification.
+sharing free. The `@public` marker stays meaningful and rare, so internal
+helpers don't accidentally leak as part of the external API. Authors aren't
+forced to make visibility decisions on every cross-file use, and plain WGSL
+files participate without modification.
 
-## Why not `pub`, `export`, or capitalization?
+## Why `@public` and `@private`?
 
-**`pub` (Rust).** `public` is a plain English word that reads clearly to
-newcomers; `pub` is a Rust-specific abbreviation. Most languages with visibility
-keywords use `public`. It also pairs grammatically with `private`, which `pub`
-does not. The cost (a few extra characters per declaration) is negligible.
+Two choices shape the visibility syntax: the names (`public` and `private`) and
+the form (an attribute, not a bare keyword).
 
-**`export` (TypeScript).** TypeScript uses `export` to mean "this declaration is
-visible outside this module." That works in TS because TS has only two
-visibility levels at the module boundary (exported / not), and because TS
-modules are the privacy unit (there is no package-internal level). WESL has
+### The names: `public` and `private`
+
+`public` and `private` are plain English words used as visibility markers in
+most languages with a visibility system (Java, C++, C#, Kotlin, Scala, Swift).
+They form a symmetric pair and read clearly to newcomers regardless of
+background language.
+
+### The form: an attribute, not a keyword
+
+WGSL reserves `public` but not `private`. WGSL's
+[reserved-words list](https://www.w3.org/TR/WGSL/#reserved-words) includes
+`public`, `pub`, `priv`, `package`, `export`, and `protected`; `private` is
+absent. Adopting `public` and `private` as bare visibility keywords would
+require WGSL to also reserve `private`, which would break any existing shader
+that uses `private` as an identifier and requires coordination with the WGSL
+working group. WGSL attributes are an open namespace by design, so `@public` and
+`@private` slot in as a symmetric pair without coordination.
+
+The attribute form also matches how WESL already extends WGSL. Other
+declaration-level metadata (`@wildcardable`, `@diagnostic`) is expressed as
+attributes, and WGSL itself uses attributes for `@vertex`, `@workgroup_size`,
+`@group`, `@binding`, and more. The cost is a small amount of visual noise (an
+extra `@` on every visibility marker); shaders are already attribute-heavy
+enough that this fits the local style.
+
+WESL does not pin a position for the visibility attribute in the grammar, just
+as WGSL does not pin a position for `@group` or `@workgroup_size`. By convention
+(a formatting rule, not a grammar rule), the visibility attribute sits last,
+immediately before the declaration keyword, so a reader scanning down the left
+margin can find it without hunting through the attribute list.
+
+### Alternatives considered
+
+**`pub` / `priv` (Rust).** WGSL reserves both `pub` and `priv`, so they could be
+adopted as bare keywords without coordination. `public` still reads more clearly
+to newcomers and to authors coming from non-Rust languages, and `priv` has
+little prior art outside early Rust, which dropped it.
+
+**`export` / `hide` (TypeScript).** TypeScript uses `export` to mean "this
+declaration is visible outside this module." That works in TS because TS has
+only two visibility levels at the module boundary (exported / not), and because
+TS modules are the privacy unit (there is no package-internal level). WESL has
 three levels and needs both extremes nameable, so `export` would have to be
-paired with a separate `hide` keyword (or similar) for `private`. Keeping
-declaration and visibility orthogonal (a declaration always declares; an
-optional keyword sets visibility) is cleaner.
+paired with a separate `@hide` (or similar). Keeping declaration and visibility
+orthogonal (a declaration always declares; an optional attribute sets
+visibility) is cleaner.
 
 **Capitalization (Go).** Go encodes visibility in the first letter of an
 identifier: capital means exported, lowercase means unexported. The rule is
@@ -158,25 +194,25 @@ names happen to be cased.
 
 ## Why re-exports cannot widen
 
-A `public import` cannot widen visibility: re-exporting a *package* or `private`
-item as `public` is a hard error.
+A `@public import` cannot widen visibility: re-exporting a *package* or
+`@private` item as `@public` is a hard error.
 
-The reason is that the visibility keyword on a declaration is meant to be a
+The reason is that the visibility attribute on a declaration is meant to be a
 local contract. An author looking at a *package* item should be able to rely on
-the keyword without scanning every `public import` in the package for a
-republication that would silently widen it. Widening would turn the keyword into
-a hint rather than a guarantee: an author refactoring what they believed was an
-internal helper could break downstream callers who reached it through a widened
-re-export elsewhere in the package.
+the attribute without scanning every `@public import` in the package for a
+republication that would silently widen it. Widening would turn the attribute
+into a hint rather than a guarantee: an author refactoring what they believed
+was an internal helper could break downstream callers who reached it through a
+widened re-export elsewhere in the package.
 
 The cost of the rule is that items exposed through a curated prelude must be
-declared `public` at their definition, leaving the original module path
+declared `@public` at their definition, leaving the original module path
 reachable too. Restricting reach to a single canonical path is sketched under
 [Future possibilities](#future-possibilities).
 
 ## Why wildcard re-export reuses the wildcard-import rule
 
-Wildcard re-export (`public import other_pkg::mod::*`) carries the same
+Wildcard re-export (`@public import other_pkg::mod::*`) carries the same
 upgrade-time risk as wildcard import (`import other_pkg::mod::*`): a future
 version of the external package that adds items to the wildcarded module
 silently extends what the using site sees. The Imports.md design addresses this
@@ -191,39 +227,39 @@ diagnostic.
 
 ## Future possibilities
 
-### `package import`
+### `@package import`
 
-Only `public import` is specified for now. A `package import` form could cover a
-"re-export within the package, hide externally" use case.
+Only `@public import` is specified for now. A `@package import` form could cover
+a "re-export within the package, hide externally" use case.
 
-### `package` keyword on declarations
+### `@package` attribute on declarations
 
-A `package` keyword would make the middle level explicit on a declaration,
-rather than leaving it implied by the absence of `public` or `private`. The
-unannotated form covers every present use, so the keyword isn't part of the
-current design; it would mainly help where an author or a tool wants to see
-that a `package` level was chosen deliberately rather than left unmarked.
+A `@package` attribute would make the middle level explicit on a declaration,
+rather than leaving it implied by the absence of `@public` or `@private`. The
+unannotated form covers every present use, so the attribute isn't part of the
+current design; it would mainly help where an author or a tool wants to see that
+a `package` level was chosen deliberately rather than left unmarked.
 
 ### Submodule re-export
 
-`public import` re-exports individual items, not whole submodules. Module
-re-export would let a package present an internal `mylib::internal::math`
-module under a cleaner path like `mylib::math`.
+`@public import` re-exports individual items, not whole submodules. Module
+re-export would let a package present an internal `mylib::internal::math` module
+under a cleaner path like `mylib::math`.
 
 ### Canonical prelude path
 
 The curated-prelude pattern leaves an item's original module path reachable
 alongside the prelude path, so internal module layout is part of what consumers
 can reach. A `@canonical` annotation on the re-export could mark the prelude
-path as the intended one, letting tooling steer consumers to it (and flag use
-of the original path) without any change to name resolution.
+path as the intended one, letting tooling steer consumers to it (and flag use of
+the original path) without any change to name resolution.
 
 ### re-export widening from root
 
-A plain `.wgsl` file with an entry point cannot be aggregated into a root
-module via `public import` without modification (see
+A plain `.wgsl` file with an entry point cannot be aggregated into a root module
+via `@public import` without modification (see
 [Aggregating entry points](Visibility.md#aggregating-entry-points)). A
-relaxation would let the root module `public import` *package* items from
-the same package, since the root defines the package's external and
-pipeline-visible API. The cost is loss of orthogonality: what
-`public import` accepts would depend on whether the importer is the root.
+relaxation would let the root module `@public import` *package* items from the
+same package, since the root defines the package's external and pipeline-visible
+API. The cost is loss of orthogonality: what `@public import` accepts would
+depend on whether the importer is the root.
