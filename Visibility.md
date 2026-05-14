@@ -88,7 +88,6 @@ in addition to bringing them into local scope.
 @wildcardable module;   // lets external importers use `prelude::*`
 
 @public import super::math::{dot2, cross2};
-@public import super::geom::*;
 @public import super::types::Mesh as M;
 ```
 
@@ -128,16 +127,6 @@ fn helper() { ... }                        // package (default)
 // my_lib/prelude.wesl
 @public import super::internal::helper;    // error: helper is package
 ```
-
-### Wildcard re-exports
-
-`@public import <path>::*` follows the same `@wildcardable` rule as plain
-wildcard imports:
-
-* Within the current package: always permitted.
-* From an external package: permitted when the target module is annotated
-  `@wildcardable`. From a non-`@wildcardable` external module, it is a
-  suppressible `wildcard_import` error.
 
 ## Pipeline visibility
 
@@ -246,21 +235,6 @@ fn fragment_main() -> @location(0) vec4f {
 }
 
 // sun_intensity not in the pipeline-visible API: linker bakes in 1.0
-```
-
-### Wildcard re-export at root
-
-A wildcard `@public import path::*` in the root module brings every
-re-exportable top-level item from the target module into the root namespace at
-once. The pipeline-relevant items among them (entry points, resource variables,
-overrides) become pipeline-visible, a convenience for external libraries that
-ship a curated bundle. Wildcard re-export at root follows the same
-`@wildcardable` rule as any other wildcard import (see
-[Wildcard re-exports](#wildcard-re-exports)).
-
-```wesl
-// app/main.wesl  (root)
-@public import pbr_lib::resources::*;   // external library's curated resource bundle
 ```
 
 ### Aggregating entry points

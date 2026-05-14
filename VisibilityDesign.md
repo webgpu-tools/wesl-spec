@@ -9,7 +9,6 @@ normative spec lives in [Visibility.md](Visibility.md).
 * [Why package by default?](#why-package-by-default)
 * [Why `@public` and `@private`?](#why-public-and-private)
 * [Why re-exports cannot widen](#why-re-exports-cannot-widen)
-* [Why wildcard re-export reuses the wildcard-import rule](#why-wildcard-re-export-reuses-the-wildcard-import-rule)
 * [Future possibilities](#future-possibilities)
 
 ## Why three levels and not two
@@ -210,21 +209,6 @@ declared `@public` at their definition, leaving the original module path
 reachable too. Restricting reach to a single canonical path is sketched under
 [Future possibilities](#future-possibilities).
 
-## Why wildcard re-export reuses the wildcard-import rule
-
-Wildcard re-export (`@public import other_pkg::mod::*`) carries the same
-upgrade-time risk as wildcard import (`import other_pkg::mod::*`): a future
-version of the external package that adds items to the wildcarded module
-silently extends what the using site sees. The Imports.md design addresses this
-with the `@wildcardable` annotation (a publisher's signal that the module is
-curated for wildcard use) and a suppressible `wildcard_import` diagnostic
-otherwise.
-
-Treating wildcard re-export as the same operation with the same guardrail keeps
-the rules predictable: within the current package it is always allowed; across a
-package boundary it requires `@wildcardable` unless the consumer suppresses the
-diagnostic.
-
 ## Future possibilities
 
 ### `@package import`
@@ -263,3 +247,17 @@ relaxation would let the root module `@public import` *package* items from the
 same package, since the root defines the package's external and pipeline-visible
 API. The cost is loss of orthogonality: what `@public import` accepts would
 depend on whether the importer is the root.
+
+### Wildcard re-export
+
+`@public import path::*` would re-export every public item of a target module.
+It is deferred because resolution would have to walk a set of modules
+recursively (modules can form cycles, so resolution would need to track visited
+modules), and it interacts awkwardly with potential future parameterized modules
+design, while enabling nothing that named re-exports cannot already express. Two
+questions need answers before it could be specified: how latent collisions
+across a library's wildcard re-exports are caught at publish time rather than by
+consumers, and what happens when wildcard re-exporting from a module that itself
+has wildcard imports. Publishing tools (see
+[#183](https://github.com/webgpu-tools/wesl-spec/issues/183)) could also expand
+wildcard re-exports at publish time into explicit named re-exports.
