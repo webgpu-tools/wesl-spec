@@ -86,7 +86,7 @@ import_collection:
 
 Where `translation_unit` and `ident` are defined in the WGSL grammar.
 `ident`s must not be current WGSL keywords. `ident`s also must not be
-current WESL keywords: `as`, `import`, `module`, `package`, `private`, `public`, `self`, or `super`.
+current WESL keywords: `as`, `import`, `module`, `package`, `public`, `self`, or `super`.
 Reserved words that are
 not current keywords are allowed, 
 but not recommended.
@@ -139,7 +139,7 @@ Then, one iterates over each segment from left to right, and looks it up one by 
        * File found: We take that file as the current module.
        * File not found: We assume an empty module as the current module, and continue with that.
 
-The steps above resolve a path; whether the referencing module may then use the result is governed by [visibility](Visibility.md).
+The steps above resolve a path; whether the referencing module may then use the result is governed by [visibility](Visibility.md). For wildcard imports, items not visible to the importer are silently skipped: a name clash between two wildcard imports is an error only when both items are visible to the importer.
 
 Once the import has been resolved, the last segment, or its `as` alias, is brought into scope.
 
