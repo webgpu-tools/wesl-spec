@@ -100,6 +100,9 @@ A wildcard import imports all top-level declarations from a module. Submodule na
 
 The optional `public` prefix also re-exports the imported names under the importing module's path; see
 [Visibility.md](Visibility.md).
+After collection flattening, each `public import` must resolve to a single item.
+The forms `public import path::*` and `public import some_module;` are not yet
+assigned a meaning and are reserved.
 
 WESL also extends WGSL's `global_directive` rule with a `module_declaration` form, used by `@wildcardable` (see [Wildcard imports](#wildcard-imports)) and reserved for future module-level metadata. `attribute` is the WGSL attribute rule.
 
