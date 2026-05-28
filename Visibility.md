@@ -43,6 +43,9 @@ There is no `package` visibility keyword: an item with no `public` or `private`
 keyword is *package*-visible. (*package* is written in italics here as a level
 name, not a keyword like `public` or `private`.)
 
+`private` is context-sensitive: it is a visibility keyword only in this
+declaration position, and remains available as an identifier elsewhere.
+
 ### Grammar
 
 Visibility extends WGSL's global declaration forms with an optional `public` or
