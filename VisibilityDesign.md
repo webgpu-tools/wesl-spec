@@ -95,7 +95,6 @@ instead of `public` on the rare case.
 ### Why not private by default?
 
 Making private the default favors strict encapsulation: every cross-file use
-
 requires an explicit visibility marker. Encapsulation discipline by default is
 handy for larger teams working on larger codebases. But private by default
 wouldn't work as well for WESL for a few reasons:
@@ -138,13 +137,13 @@ wouldn't work as well for WESL for a few reasons:
   shares at least some declarations with other modules in the package (helpers,
   types, constants). With private as the default, every author would have to
   mark those items explicitly, even authors who don't otherwise care about
-  encapsulation. Package as the default keeps that cost off the common case while
-  leaving `private` available to authors who want stricter boundaries.
+  encapsulation. Package as the default keeps that cost off the common case
+  while leaving `private` available to authors who want stricter boundaries.
 
   Major languages disagree on whether this cost is worth paying. Some (Rust,
   TypeScript) require markers for cross-file sharing within a package; others
   (Java, Scala, Kotlin, Swift) do not. There is no settled best answer, so WESL
-  weighs the choice for its own users, most of whom are better served by a quiet default.
+  weighs the choice for its own users.
 
 * **WESL projects are small, even when frameworks are big.** Shader projects are
   generally much smaller than projects in general purpose programming languages.
@@ -299,8 +298,8 @@ declaration mentions a less-visible type, with a suppression such as
 `@diagnostic(off, leaked_type)` for the deliberate cases.
 
 The current spec permits it with no diagnostic. The leak case is rare and its
-shape in real WESL code is unproven, so prescribing a warning now would commit to
-the concept before practice shows whether it is wanted, and which uses are
+shape in real WESL code is unproven, so prescribing a warning now would commit
+to the concept before practice shows whether it is wanted, and which uses are
 deliberate. A warning is purely additive, so it can be introduced later once
 usage is clearer without breaking any program that links today. (Rust began with
 a strict rule here and relaxed it in
