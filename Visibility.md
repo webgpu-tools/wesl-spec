@@ -73,10 +73,8 @@ have a field of a less-visible type. A consumer that cannot see the type can
 still use a value of it (call the function, read its fields) but cannot name the
 less-visible type to declare a variable, import it, or construct a new value.
 
-WESL tools (the language server, linker, and publishing tools) should warn when
-a `public` declaration mentions a less-visible type in its signature or fields;
-the warning is suppressible with `@diagnostic(off, leaked_type)` on the
-declaration. Publishing tools may escalate the warning to an error.
+Naming a less-visible type in a `public` signature or field is permitted with no
+diagnostic.
 
 ## Re-exports
 

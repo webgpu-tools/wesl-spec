@@ -23,6 +23,7 @@ normative spec lives in [Visibility.md](Visibility.md).
   * [Canonical prelude path](#canonical-prelude-path)
   * [Re-export widening from root](#re-export-widening-from-root)
   * [Wildcard re-export](#wildcard-re-export)
+  * [Diagnosing leaked types](#diagnosing-leaked-types)
 
 ## Why three levels and not two
 
@@ -286,3 +287,22 @@ consumers, and what happens when wildcard re-exporting from a module that itself
 has wildcard imports. Publishing tools (see
 [#183](https://github.com/webgpu-tools/wesl-spec/issues/183)) could also expand
 wildcard re-exports at publish time into explicit named re-exports.
+
+### Diagnosing leaked types
+
+A `public` declaration may name a less-visible type in its signature or fields
+(see
+[Referring to less-visible declarations](Visibility.md#referring-to-less-visible-declarations)).
+This is usually intentional, but it can also be an accident that quietly narrows
+what a consumer can do with a public API. Tools could warn when a `public`
+declaration mentions a less-visible type, with a suppression such as
+`@diagnostic(off, leaked_type)` for the deliberate cases.
+
+The current spec permits it with no diagnostic. The leak case is rare and its
+shape in real WESL code is unproven, so prescribing a warning now would commit to
+the concept before practice shows whether it is wanted, and which uses are
+deliberate. A warning is purely additive, so it can be introduced later once
+usage is clearer without breaking any program that links today. (Rust began with
+a strict rule here and relaxed it in
+[RFC 2145](https://rust-lang.github.io/rfcs/2145-type-privacy.html); Go and
+TypeScript permit the leak and lean on lints.)
