@@ -7,9 +7,22 @@ normative spec lives in [Visibility.md](Visibility.md).
 * [Why three levels and not two](#why-three-levels-and-not-two)
 * [Why three levels and not four or more](#why-three-levels-and-not-four-or-more)
 * [Why package by default?](#why-package-by-default)
+  * [Why not public by default?](#why-not-public-by-default)
+  * [Why not private by default?](#why-not-private-by-default)
+  * [Package by default](#package-by-default)
 * [Why `public` and `private` syntax?](#why-public-and-private-syntax)
+  * [Why not `pub`?](#why-not-pub)
+  * [Why not `export`?](#why-not-export)
+  * [Why not capitalization syntax?](#why-not-capitalization-syntax)
+  * [Why not `@public` and `@private`?](#why-not-public-and-private)
 * [Why re-exports cannot widen](#why-re-exports-cannot-widen)
 * [Future possibilities](#future-possibilities)
+  * [`package import`](#package-import)
+  * [`package` keyword on declarations](#package-keyword-on-declarations)
+  * [Submodule re-export](#submodule-re-export)
+  * [Canonical prelude path](#canonical-prelude-path)
+  * [Re-export widening from root](#re-export-widening-from-root)
+  * [Wildcard re-export](#wildcard-re-export)
 
 ## Why three levels and not two
 
@@ -250,7 +263,7 @@ can reach. A `@canonical` annotation on the re-export could mark the prelude
 path as the intended one, letting tooling steer consumers to it (and flag use of
 the original path) without any change to name resolution.
 
-### re-export widening from root
+### Re-export widening from root
 
 A plain `.wgsl` file with an entry point cannot be aggregated into a root module
 via `public import` without modification (see
