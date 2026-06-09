@@ -188,8 +188,16 @@ fixed relative to its package's root directory, which the linker takes from a
 ### `package.wesl`
 
 `package.wesl` is the file backing a package's top-level module, placed at the
-package's root directory. Items declared in or `public import`ed from
+package's root directory (the directory named by the package's
+[`root`](WeslToml.md#root-field)). Items declared in or `public import`ed from
 `package.wesl` are reachable as `<package>::item`.
+
+`package.wesl` is optional. Without `package.wesl`, there are no top-level items
+to resolve as `<package>::item`, but `<package>::submodule::item` still works.
+
+`package.wesl` is special only in the root directory. Elsewhere it cannot be
+used: `package` is a reserved keyword and not a legal module name. Tools such as
+the language server should warn about a misplaced `package.wesl`.
 
 ### Reserved file names
 
