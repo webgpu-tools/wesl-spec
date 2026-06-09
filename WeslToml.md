@@ -66,7 +66,7 @@ For dual publishing, the expectation is that one would have a primary package ma
 
 ### `root` field
 
-Specifies the root folder or root file for the `package::` syntax.
+Specifies the root folder for the `package::` syntax.
 IDEs watch this directory for changes.
 
 - Optional
