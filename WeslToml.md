@@ -46,7 +46,6 @@ As your application grows, we suggest adding a `wesl.toml`. This lets you pin do
 Specifies which edition is used by wesl. All wesl editions can be used.
 
 Supported editions are
-- `WGSL` for pure WGSL
 - `2026_pre` for the current WESL version
 
 - Mandatory
@@ -91,14 +90,17 @@ The patterns are glob patterns, made up of the following components
 - file and folder names
 - `*` for zero or more characters in file/folder names
 - `?` for one character in a file/folder name
-- `**/` for any directory nested to any level
+- `**/` for directories nested to any level, including the current directory
 
 If the last path segment does not contain a file extension or wildcard, then it is treated as a directory, and files with `.wesl` or `.wgsl` extensions inside that directory are included.
 
-To implement this, one starts at the `root` folder, and recursively goes over the children.
-1. If a `wesl.toml` file is present, that entire subtree is excluded, as it is under the purview of another `wesl.toml` file.
-2. If the file/folder path matches any exclusion, that entire subtree is excluded.
-3. If the file/folder path does *not* match the *prefix* of any of the inclusions, then that subtree is excluded.
+A file under `root` is included when all of these hold:
+
+1. it is not inside a subtree owned by a nested wesl.toml (the current package's own wesl.toml does not count)
+2. its path, relative to this wesl.toml, matches at least one include glob
+3. its path matches no exclude glob
+
+(non-normative) Implementations may prune directories while walking: skip a folder if it contains a nested wesl.toml, if it matches an exclude, or if no include glob could match any path beneath it.
 
 ### Path semantics
 
