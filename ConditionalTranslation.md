@@ -113,34 +113,39 @@ Refer to the [updated grammar appendix](#appendix-updated-grammar) for the list 
    * function call statements
    * const assertion statements
 
-> [!WARNING]
-> We added attributes on assignment and increment/decrement statements. This change makes the WESL grammar no longer [LR(1)](https://en.wikipedia.org/wiki/LR_parser). See [`wesl-rs#162`](https://github.com/webgpu-tools/wesl-rs/issues/162) for details.
->
-> Due to this limitation, *wesl-rs* does not allow attributes on assignment, increment and decrement statements starting with a `(`. Concretely, this is not supported by *wesl-rs*: `@if(FOO) (x)++`.
+## `@if` attribute family
+The `@if`, `@elif` and `@else` *translate-time attributes* are introduced. The decorated node is only kept if the branch is truthy.
 
-## `@if` attribute
-The `@if` *translate-time attribute* is introduced. It takes a single parameter. It marks the decorated node for removal if the parameter evaluates to `false`.
-
-A syntax node may at most have a single `@if` attribute. This keeps the way open for a `@else` attribute introduction in the future.
+A syntax node may at most have a single `@if`, `@elif` or `@else` attribute. 
 Checking for multiple features is done with an `&&`
 
 ```wgsl
 @if(feature1 && feature2)   const decl: u32 = 0;
 ```
 
-> *See the [possible future extensions](#possible-future-extensions) for the attributes `@elif` and `@else`.
-> They may be introduced in the specification in a future version if deemed useful.*
+- `@if` takes a single parameter.
+
+- An `@elif` attribute decorates the next sibling of a syntax node decorated by a `@if` or an `@elif`. It takes one parameter.
+It marks the decorated node for removal if its parameter evaluates to `false` OR if any of the previous `@if` and `@elif` attribute parameters evaluate to `true`.
+
+- An `@else` attribute decorates the next sibling of a syntax node decorated by a `@if` or an `@elif`. It does not take any parameter.
+It marks the decorated node for removal if any of the previous `@if` and `@elif` attribute parameters evaluate to `true`.
 
 Example:
 
 ```wgsl
 @if(feature_1 && (!feature_2 || feature_3))
 fn f() { ... }
-@if(!feature_1)                               // corresponds to @elif(!feature_1)
+@elif(!feature_1)
 fn f() { ... }
-@if(feature_1 && !(!feature_2 || feature_3))  // corresponds to @else
+@else
 fn f() { ... }
 ```
+
+
+
+Design note:
+To keep the grammar [LR(1)](https://en.wikipedia.org/wiki/LR_parser), all translate time attributes are unambiguously specified in the formal grammar. This allows for translate time attributes before assignment, increment and decrement statements starting with a `(`. A concrete example is `@if(FOO) (x)++`.
 
 ## Execution of the conditional translation phase
 1. The *WESL translator* is invoked with the list of features to *enable* or *disable*.
@@ -168,27 +173,104 @@ If the *WESL translator* does not support incremental translation, it is a *link
 
 > *It is not an error to provide unused feature flags to the linker. However, an implementation may choose to display a warning in that case.*
 
-## Possible future extensions
-> *This section is non-normative*
+## Appendix: Updated grammar
+The following non-terminals are added or modified. Global declarations get extended to handle general attributes to support future experiments such as `@deprecated`. Everything else is extended with the more restricted `translate_time_attribute`:
 
-* `@else` and `@elif` attributes:
-  * An `@elif` attribute decorates the next sibling of a syntax node decorated by a `@if` or an `@elif`. It takes one parameter.
-     It marks the decorated node for removal if its parameter evaluates to `false` OR if any of the previous `@if` and `@elif` attribute parameters evaluate to `true`.
-  * An `@else` attribute decorates the next sibling of a syntax node decorated by a `@if` or an `@elif`. It does not take any parameter.
-     It marks the decorated node for removal if any of the previous `@if` and `@elif` attribute parameters evaluate to `true`.
+```grammar
+    diagnostic_directive :
+      translate_time_attribute * 'diagnostic' diagnostic_control ';'
 
-  The `@else` attribute has the nice property that all cases lead to generating a node, and *could* therefore be used in places where the node is required (e.g. expressions)
+    enable_directive :
+      translate_time_attribute * 'enable' enable_extension_list ';'
 
-  Example:
+    requires_directive :
+      translate_time_attribute * 'requires' software_extension_list ';'
 
-  ```wgsl
-  @if(feature_1 && (!feature_2 || feature_3))
-  fn f() { ... }
-  @elif(!feature_1)
-  fn f() { ... }
-  @else
-  fn f() { ... }
-  ```
+    struct_decl :
+      attribute * 'struct' ident struct_body_decl
+     
+    type_alias_decl :
+      attribute * 'alias' ident '=' type_specifier
+
+    variable_or_value_statement :
+      translate_time_attribute * variable_decl
+    | translate_time_attribute * variable_decl '=' expression
+    | translate_time_attribute * 'let' optionally_typed_ident '=' expression
+    | translate_time_attribute * 'const' optionally_typed_ident '=' expression
+
+    variable_decl :
+      'var' _disambiguate_template template_list ? optionally_typed_ident
+     
+    global_value_decl :
+      attribute * 'const' optionally_typed_ident '=' expression
+    | ...
+
+    case_clause :
+      attribute * 'case' case_selectors ':' ? compound_statement
+
+    default_alone_clause :
+      attribute * 'default' ':' ? compound_statement
+
+    assignment_statement :
+      translate_time_attribute * lhs_expression ( '=' | compound_assignment_operator ) expression
+    | translate_time_attribute * '_' '=' expression
+
+    increment_statement :
+      translate_time_attribute * lhs_expression '++'
+
+    decrement_statement :
+      translate_time_attribute * lhs_expression '--'
+
+    break_statement :
+      translate_time_attribute * 'break'
+
+    break_if_statement :
+      translate_time_attribute * 'break' 'if' expression ';'
+
+    continue_statement :
+      translate_time_attribute * 'continue'
+     
+    continuing_statement :
+      translate_time_attribute * 'continuing' continuing_compound_statement
+
+    return_statement :
+      translate_time_attribute * 'return' expression ?
+    
+    discard_statement:
+      translate_time_attribute * 'discard'
+
+    func_call_statement :
+      translate_time_attribute * call_phrase
+
+    global_assert :
+      translate_time_attribute * const_assert
+
+    assert_statement :
+      translate_time_attribute * const_assert
+
+    statement :
+      ';'
+    | ...
+    | discard_statement ';'
+    | ...
+
+    translate_time_attribute:
+      '@' 'if' '(' expression ',' ? ')'
+    | '@' 'elif' '(' expression ',' ? ')'
+    | '@' 'else'
+      
+    attribute :
+      '@' ident_pattern_token argument_expression_list ?
+    | align_attr
+    | ...
+    | translate_time_attribute
+```
+
+### Possible extensions
+
+The `@else` attribute has the nice property that all cases lead to generating a node, and *could* therefore be used in places where the node is required (e.g. expressions)
+
+
 
 * High-complexity *translate-time expressions*: if we end up implementing other *translate-time attributes*, such as loops (e.g. `@for`, `@repeat`), or [translate-time-evaluable](https://zig.guide/language-basics/comptime/) expressions, then we would need to extend the grammar of *translate-time expressions*. It would also affect this proposal.
 
@@ -214,120 +296,3 @@ If the *WESL translator* does not support incremental translation, it is a *link
   @else
   import accel/default_acceleration_structure as scene_struct;
   ```
-
-## Appendix: Updated grammar
-The following non-terminals are added or modified:
-
-```grammar
-    diagnostic_directive :
-      attribute * 'diagnostic' diagnostic_control ';'
-
-    enable_directive :
-      attribute * 'enable' enable_extension_list ';'
-
-    requires_directive :
-      attribute * 'requires' software_extension_list ';'
-
-    struct_decl :
-      attribute * 'struct' ident struct_body_decl
-     
-    type_alias_decl :
-      attribute * 'alias' ident '=' type_specifier
-
-    variable_or_value_statement :
-      variable_decl
-    | variable_decl '=' expression
-    | attribute * 'let' optionally_typed_ident '=' expression
-    | attribute * 'const' optionally_typed_ident '=' expression
-
-    variable_decl :
-      attribute * 'var' _disambiguate_template template_list ? optionally_typed_ident
-     
-    global_variable_decl :
-      variable_decl ( '=' expression ) ?
-
-    global_value_decl :
-      attribute * 'const' optionally_typed_ident '=' expression
-    | attribute * 'override' optionally_typed_ident ( '=' expression ) ?
-
-    case_clause :
-      attribute * 'case' case_selectors ':' ? compound_statement
-
-    default_alone_clause :
-      attribute * 'default' ':' ? compound_statement
-
-    assignment_statement :
-      attribute * lhs_expression ( '=' | compound_assignment_operator ) expression
-    | attribute * '_' '=' expression
-
-    increment_statement :
-      attribute * lhs_expression '++'
-
-    decrement_statement :
-      attribute * lhs_expression '--'
-
-    break_statement :
-      attribute * 'break'
-
-    break_if_statement :
-      attribute * 'break' 'if' expression ';'
-
-    continue_statement :
-      attribute * 'continue'
-     
-    continuing_statement :
-      attribute * 'continuing' continuing_compound_statement
-
-    return_statement :
-      attribute * 'return' expression ?
-    
-    discard_statement:
-      attribute * 'discard'
-
-    func_call_statement :
-      attribute * call_phrase
-
-    const_assert_statement :
-      attribute * 'const_assert' expression
-
-    statement :
-      ';'
-    | return_statement ';'
-    | if_statement
-    | switch_statement
-    | loop_statement
-    | for_statement
-    | while_statement
-    | func_call_statement ';'
-    | variable_or_value_statement ';'
-    | break_statement ';'
-    | continue_statement ';'
-    | discard_statement ';'
-    | variable_updating_statement ';'
-    | compound_statement
-    | const_assert_statement ';'
-
-    attribute :
-      '@' ident_pattern_token argument_expression_list ?
-    | align_attr
-    | binding_attr
-    | blend_src_attr
-    | builtin_attr
-    | const_attr
-    | diagnostic_attr
-    | group_attr
-    | id_attr
-    | interpolate_attr
-    | invariant_attr
-    | location_attr
-    | must_use_attr
-    | size_attr
-    | workgroup_size_attr
-    | vertex_attr
-    | fragment_attr
-    | compute_attr
-    | if_attr
-
-    if_attr:
-      '@' 'if' '(' expression ',' ? ')'
-```
