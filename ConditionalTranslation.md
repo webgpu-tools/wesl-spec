@@ -123,7 +123,7 @@ Checking for multiple features is done with an `&&`
 @if(feature1 && feature2)   const decl: u32 = 0;
 ```
 
-- `@if` takes a single parameter.
+- An `@if` attribute takes a single parameter. It marks the decorated node for removal if the parameter evaluates to `false`.
 
 - An `@elif` attribute decorates the next sibling of a syntax node decorated by a `@if` or an `@elif`. It takes one parameter.
 It marks the decorated node for removal if its parameter evaluates to `false` OR if any of the previous `@if` and `@elif` attribute parameters evaluate to `true`.
