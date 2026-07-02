@@ -474,19 +474,19 @@ This only refers to the exact module that an element is in, and not any of the p
 Example:
 
 ```wgsl
-​​​​// main.wesl:
-​​​​import foo::bar;
-​​​​fn main() { bar(); }
+// main.wesl:
+import foo::bar;
+fn main() { bar(); }
 
-​​​​// foo.wesl:
-​​​​import zig::zag;
-​​​​const_assert(1 > 0); // included in link because bar is used
-​​​​fn bar() { }
-​​​​fn miz() { zag() }
+// foo.wesl:
+import zig::zag;
+const_assert(1 > 0); // included in link because bar is used
+fn bar() { }
+fn miz() { zag() }
 
-​​​​// zig.wesl:
-​​​​const_assert(2 < 0); // not included in link
-​​​​fn zag() { }
+// zig.wesl:
+const_assert(2 < 0); // not included in link
+fn zag() { }
 ```
 
 Example
