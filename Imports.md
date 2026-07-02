@@ -334,9 +334,8 @@ applications.
 **Don't shadow WGSL builtins.** Names like `vec3`, `clamp`, `inverseSqrt` have
 expected semantics that oughtn't be implicitly overridden with wildcards.
 Similarly, avoid experimental Naga/Dawn/Safari builtins.
-- WESL publishing tools should warn when a `@!wildcardable` module exports an
-  item that shadows a WGSL builtin. Suppress with
-  `@diagnostic(off, builtin_shadow)` in the module if the shadow is intentional.
+- The `builtin_shadow` diagnostic flags this (see
+  [Suppressible diagnostics](#suppressible-diagnostics)).
 - If a future WGSL update adds a conflicting builtin name, plan to update the
   `@!wildcardable` module to rename the conflicting item.
 
@@ -346,8 +345,15 @@ Libraries that wildcard import from other libraries raise special concerns. If a
 user's package manager chooses a newer version of the imported-from library,
 the user may see a conflict in library code they don't expect to modify.
 
-WESL library publishing tools address this by expanding wildcards to named
-imports in the published version of the module:
+Cross-package wildcard imports in library code
+trigger the `library_wildcard` diagnostic, a suppressible error. Library
+authors can suppress the diagnostic with
+`@diagnostic(off, library_wildcard)` on the import statement, e.g. when
+wildcard importing from external packages they control.
+
+**Optional: publish-time wildcard expansion.** Library publishing tools may
+also offer to expand wildcards to named imports in the published version of a
+module, snapshotting the names at publish time:
 
 ```wesl
 // source
@@ -358,6 +364,9 @@ import bevy::prelude::*;
 // published artifact
 import bevy::prelude::{Color, Mesh, Transform, /* snapshot at publish time */};
 ```
+
+Expansion pins the imported names so that a newer version of the imported-from
+library can't introduce conflicts into already-published code.
 
 ## Import errors and warnings
 
@@ -372,11 +381,15 @@ collisions cannot be suppressed; other diagnostics are suppressible via
 | Named import conflicts with named import | Error |
 | Wildcard import conflicts with wildcard import (when name is referenced) | Error |
 | Wildcard import from a non-`@!wildcardable` external module | Error (`wildcard_import`) on the import; suppressible |
-| Local declaration or named import shadows a wildcard-imported name | Warning (`wildcard_shadow`) on the shadowing declaration; suppressible |
+| Cross-package wildcard import in library code | Error (`library_wildcard`) on the import; suppressible |
+| Local declaration or named import shadows a wildcard-imported name | Warning (`wildcard_shadow`) on the shadowing declaration or import; suppressible |
+| `@!wildcardable` module exports an item shadowing a WGSL builtin | Warning (`builtin_shadow`) in the exporting module; suppressible |
 
 When multiple wildcard imports are in scope, the same name may be exported by
-more than one module. The potential conflict is dormant unless the name is
-referenced; referencing it is an error:
+more than one module. If every wildcard resolves the name to the same
+declaration, references are unambiguous and no error occurs. A name that could
+refer to two different declarations is a dormant conflict: an error occurs
+only where the name is referenced:
 
 ```wesl
 import foo::*; // exports clashing_zap
@@ -395,39 +408,48 @@ The fix is to disambiguate with a named import (`import foo::clashing_zap;`) or
 - **`wildcard_import`** fires on a wildcard import from an external module not
   marked `@!wildcardable`. Suppress with `@diagnostic(off, wildcard_import)` on
   the import statement to accept the upgrade risk that future versions of the
-  imported module may add conflicting names.
+  imported module may add conflicting names. The suppression has no effect on
+  an import from a `@!wildcardable` module, where the diagnostic never fires.
 
-- **`wildcard_shadow`** fires on a local declaration or named import that
-  shadows a name brought in by a wildcard import. The local wins by precedence
-  (see [Scope precedence](#scope-precedence)). Suppress with
-  `@diagnostic(off, wildcard_shadow)` on that shadowing declaration or import
-  statement.
+- **`wildcard_shadow`** is a warning that fires on a local declaration or named
+  import that shadows a name brought in by a wildcard import. The shadowing is
+  allowed: the local declaration or named import wins by precedence
+  (see [Scope precedence](#scope-precedence)). Suppressing the warning with
+  `@diagnostic(off, wildcard_shadow)` on the shadowing declaration or import
+  statement changes only the reporting, not the resolution.
 
-- **`builtin_shadow`** fires in WESL publishing tools when a `@!wildcardable`
-  module exports an item that shadows a WGSL builtin such as `vec3` or `clamp`.
-  Suppress with `@diagnostic(off, builtin_shadow)` in the module if the override
-  is intentional.
+- **`library_wildcard`** is a suppressible error that fires on a cross-package
+  wildcard import in library code (see
+  [Library-to-library wildcard imports](#library-to-library-wildcard-imports)).
+  Suppress with `@diagnostic(off, library_wildcard)` on the import statement.
+
+- **`builtin_shadow`** fires on a `@!wildcardable` module that exports an item
+  shadowing a WGSL builtin such as `vec3` or `clamp`. Suppress with
+  `@diagnostic(off, builtin_shadow)` in the module if the override is
+  intentional.
 
 ## Scope precedence
 
 When a name could resolve to items at multiple precedence levels, the
-highest-precedence one wins. The table above describes whether such a resolution
-is silent, produces a warning, or produces an error.
+highest-precedence one wins. The table in
+[Import errors and warnings](#import-errors-and-warnings) describes whether
+such a resolution is silent, produces a warning, or produces an error.
 
-1. user declarations
-2. named imports (non-wildcard)
-3. wildcard-imported names
-4. package names
-5. predeclared items (WGSL builtins)
+1. user declarations and named imports (non-wildcard)
+2. wildcard-imported names
+3. package names
+4. predeclared items (WGSL builtins)
+
+User declarations and named imports share the top precedence level: a conflict
+between them is an error, so at most one candidate can exist at that level.
 
 Predeclared items rank lowest so that future WGSL spec revisions can add new
 builtins without breaking existing shaders: any name already bound at a higher
 level continues to resolve as before. Wildcard-imported names rank below user
 declarations and named imports for the analogous reason: additions to a
 `@!wildcardable` module won't silently change resolution at call sites that
-already have a local or named binding for the same name. Wildcard imports do not
-bring in package names (only top-level declarations of the imported module), so
-a wildcard cannot shadow a package.
+already have a local or named binding for the same name. Wildcard imports bring
+in only the imported module's top-level declarations, not package names.
 
 ## Directives
 Under discussion, see: <https://github.com/wgsl-tooling-wg/wesl-spec/issues/71>
