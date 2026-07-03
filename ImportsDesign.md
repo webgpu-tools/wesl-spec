@@ -3,25 +3,22 @@
 This document records design decisions behind WESL's import system. The
 normative spec lives in [Imports.md](Imports.md).
 
-## Why the `@wildcardable module;` form?
+## Why the `@!` module attribute form?
 
-`@wildcardable` is module-level metadata. WESL will likely want module-level
+`@!wildcardable` is module-level metadata. WESL will likely want module-level
 annotations for other module-scoped features, and libraries and users will want
 a place to attach their own metadata to a whole module. A general-purpose syntax
 for module metadata avoids inventing one ad-hoc form per feature.
 
-The syntax pairs an attribute list with a `module` declaration:
+`@!wildcardable` mirrors the item-level attribute convention (`@group`,
+`@binding`, `@if`, `@diagnostic`, ...), but the `!` marks the attribute as
+scoped to the whole module. Unlike an item attribute, it doesn't attach to a
+following element, so a trailing `;` terminates it.
 
-- **`@`-prefixed attributes** match the existing item-level convention
-  (`@group`, `@binding`, `@if`, `@diagnostic`, ...). Module-level metadata uses
-  the same `@name` form, so users learn one annotation convention rather than
-  two, and the `@` always attaches to the element it precedes.
-- **The `module` keyword** anchors the attributes to a declaration, but the
-  keyword is still usable for potential module-level features. For example,
-  syntax like `module(...)`, `module foo::bar`, or `module { ... }` is still
-  available for future use.
+Module attributes sit below the imports so that they can use imported
+names (for example a hypothetical `@!play_version(2);`).
 
-See [`@wildcardable` annotation](Imports.md#wildcardable-annotation) for the
+See [`@!wildcardable` annotation](Imports.md#wildcardable-annotation) for the
 normative spec.
 
 ## Aren't wildcards an anti-pattern?
@@ -81,14 +78,14 @@ benefits while limiting the risk:
   or with generic names (`Buffer`, `Result`) are fine to import by name but
   hazardous to wildcard.
 - **Authors can signal which modules are curated for wildcards.** An explicit
-  `@wildcardable` marker lets library authors tell consumers (and tools) which
+  `@!wildcardable` marker lets library authors tell consumers (and tools) which
   modules they've designed for wildcard use. It also gives tooling a hook for
   lints around generic names, builtin shadowing, churn-prone additions, etc.
 - **Defaults shape the ecosystem.** Red/yellow squiggles and linter messages
   teach safe wildcard practice to new and part-time shader authors more reliably
   than community blogs or documentation.
 - **Advanced users are not blocked.** Within a package, wildcard imports are
-  unrestricted; externally, wildcard-importing a non-`@wildcardable` module is
+  unrestricted; externally, wildcard-importing a non-`@!wildcardable` module is
   possible via
   [standard diagnostic controls](Imports.md#suppressible-diagnostics). The
   default tunes the path of least resistance, but doesn't block users who
