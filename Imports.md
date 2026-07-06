@@ -597,7 +597,7 @@ a package (see [Inline Usage](#inline-usage)). Tools may warn about the
 shadowing.
 
 ## Directives
-Under discussion, see: <https://github.com/wgsl-tooling-wg/wesl-spec/issues/71>
+Under discussion, see: <https://github.com/webgpu-tools/wesl-spec/issues/71>
 
 ## Entry points and pipeline overridable constants
 These items are preserved when importing a module. Their name must be preserved.
@@ -606,7 +606,7 @@ They will land in the final module, if they are statically accessed.
 * [Entry points](https://www.w3.org/TR/WGSL/#entry-points)
 * [Pipeline overridable constants](https://www.w3.org/TR/WGSL/#override-decls)
 
-For future work, see [@publish GitHub Issue](https://github.com/wgsl-tooling-wg/wesl-spec/issues/65).
+For future work, see [@publish GitHub Issue](https://github.com/webgpu-tools/wesl-spec/issues/65).
 
 ## Side-effects and `const_assert`
 Generally, WGSL elements are included if they are recursively used from the root module ([statically accessed](https://www.w3.org/TR/WGSL/#statically-accessed)).
@@ -644,7 +644,7 @@ const a: u32 = bar::baz::hello;
 ```
 
 `const_assert`s inside functions are treated specially! They can get eliminated during dead-code elimination, which is an observable side-effect.
-[WESL deviates from WGSL here](https://github.com/wgsl-tooling-wg/wesl-spec/issues/93).
+[WESL deviates from WGSL here](https://github.com/webgpu-tools/wesl-spec/issues/93).
 
 ## Name Mangling
 See [Name Mangling](./NameMangling.md)
@@ -735,11 +735,11 @@ that are needed by other imports,
 automating shader composition for users.
 
 # Implementation
-Implemented in the [JavaScript/TypeScript](https://github.com/wgsl-tooling-wg/wesl-js) and [Rust](https://github.com/wgsl-tooling-wg/wesl-rs) linkers.
+Implemented in the [JavaScript/TypeScript](https://github.com/webgpu-tools/wesl-js) and [Rust](https://github.com/webgpu-tools/wesl-rs) linkers.
 
 # Test cases
 Test cases are available on
-[GitHub](https://github.com/wgsl-tooling-wg/wesl-testsuite).
+[GitHub](https://github.com/webgpu-tools/wesl-testsuite).
 
 # Future possibilities
 

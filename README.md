@@ -26,7 +26,7 @@ their own enhancements and associated tools.
 And a shared standard can enable reusable WGSL libraries
 on npm and crates.io.
 
-Join us on [GitHub](https://github.com/wgsl-tooling-wg/wesl-spec)
+Join us on [GitHub](https://github.com/webgpu-tools/wesl-spec)
 or [Discord](https://discord.gg/Ng5FWmHuSv) to help.
 
 ## Goals

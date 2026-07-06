@@ -1,11 +1,11 @@
-Copyright (c) The wgsl-tooling-wg Contributors.
+Copyright (c) The webgpu-tools Contributors.
 
-Copyrights in the wgsl-tooling-wg projects are retained by their contributors.
-No copyright assignment is required to contribute to the wgsl-tooling-wg projects.
+Copyrights in the webgpu-tools projects are retained by their contributors.
+No copyright assignment is required to contribute to the webgpu-tools projects.
 
 Some files include explicit copyright notices and/or license notices.
 For full authorship information, see the version control history.
 
-Except as otherwise noted, the wgsl-tooling-wg projects are licensed under the
+Except as otherwise noted, the webgpu-tools projects are licensed under the
 Apache License, Version 2.0 <LICENSE-APACHE> or <http://www.apache.org/licenses/LICENSE-2.0>
 or the MIT license <LICENSE-MIT> or <http://opensource.org/licenses/MIT>, at your option.
