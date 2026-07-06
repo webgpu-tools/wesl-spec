@@ -96,7 +96,7 @@ An item import imports a single item. The item can be renamed with the `as` keyw
 
 An import collection imports multiple items, and allows for nested imports.
 
-A wildcard import imports all top-level declarations from a module. Submodule names and submodule contents are not imported. A wildcard must follow a module path; a bare `import *;` is an error.
+A wildcard import imports all top-level declarations from a module. Submodule names and submodule contents are not imported. A wildcard must follow a module path; a bare `import *;` is an error. A wildcard may also appear as a member of an import collection, applying to the module path before the braces (see [Import resolution algorithm](#import-resolution-algorithm)).
 
 WESL also extends WGSL's `global_directive` rule with a *module attribute*: a `@!`-prefixed attribute that carries module-level metadata. It is used by `@!wildcardable` (see [Wildcard imports](#wildcard-imports)) and reserved for future module-level metadata.
 
@@ -125,6 +125,17 @@ import a::b;
 import a::c::d;
 import a::c::e as f;
 ```
+
+A wildcard may appear as a member of an import collection:
+`import foo::{a::b, *};` becomes
+
+```wesl
+import foo::a::b;
+import foo::*;
+```
+
+The wildcard imports only `foo`'s own top-level declarations: the sibling
+branch reaching into submodule `foo::a` doesn't widen it.
 
 Then, one iterates over each segment from left to right, and looks it up one by one.
 
@@ -285,7 +296,7 @@ compiler warnings or errors. To help mitigate this risk, WESL provides a
 designed for wildcard importing.
 
 Advanced users who wish to wildcard import from external modules not marked as
-`@!wildcardable` can do so by suppressing `wildcard_import` (see
+`@!wildcardable` can do so by suppressing `unsupported_wildcard` (see
 [Suppressible diagnostics](#suppressible-diagnostics)).
 
 ```wesl
@@ -346,9 +357,9 @@ user's package manager chooses a newer version of the imported-from library,
 the user may see a conflict in library code they don't expect to modify.
 
 Cross-package wildcard imports in library code
-trigger the `library_wildcard` diagnostic, a suppressible error. Library
+trigger the `cross_package_wildcard` diagnostic, a suppressible error. Library
 authors can suppress the diagnostic with
-`@diagnostic(off, library_wildcard)` on the import statement, e.g. when
+`@diagnostic(off, cross_package_wildcard)` on the import statement, e.g. when
 wildcard importing from external packages they control.
 
 **Optional: publish-time wildcard expansion.** Library publishing tools may
@@ -370,8 +381,8 @@ library can't introduce conflicts into already-published code.
 
 ## Import errors and warnings
 
-WESL emits errors for name collisions and for external wildcards from unmarked
-modules, and warnings for shadowing that could surprise readers. Genuine
+WESL emits errors for name collisions and for unsupported wildcard imports,
+and warnings for shadowing that could surprise readers. Genuine
 collisions cannot be suppressed; other diagnostics are suppressible via
 `@diagnostic`.
 
@@ -380,10 +391,10 @@ collisions cannot be suppressed; other diagnostics are suppressible via
 | Local declaration conflicts with named import | Error |
 | Named import conflicts with named import | Error |
 | Wildcard import conflicts with wildcard import (when name is referenced) | Error |
-| Wildcard import from a non-`@!wildcardable` external module | Error (`wildcard_import`) on the import; suppressible |
-| Cross-package wildcard import in library code | Error (`library_wildcard`) on the import; suppressible |
+| Wildcard import from a non-`@!wildcardable` external module | Error (`unsupported_wildcard`) on the import; suppressible |
+| Cross-package wildcard import in library code | Error (`cross_package_wildcard`) on the import; suppressible |
 | Local declaration or named import shadows a wildcard-imported name | Warning (`wildcard_shadow`) on the shadowing declaration or import; suppressible |
-| `@!wildcardable` module exports an item shadowing a WGSL builtin | Warning (`builtin_shadow`) in the exporting module; suppressible |
+| `@!wildcardable` module exports an item shadowing a WGSL builtin | Warning (`builtin_shadow`) on the shadowing declaration; suppressible |
 
 When multiple wildcard imports are in scope, the same name may be exported by
 more than one module. If every wildcard resolves the name to the same
@@ -400,16 +411,23 @@ fn main() {
 }
 ```
 
-The fix is to disambiguate with a named import (`import foo::clashing_zap;`) or
+The fix is to disambiguate with a named import (`import foo::clashing_zap;`,
+or `import foo::{clashing_zap, *};` to keep the wildcard) or an
 [inline module path](#inline-usage) (`foo::clashing_zap()`).
 
 ### Suppressible diagnostics
 
-- **`wildcard_import`** fires on a wildcard import from an external module not
-  marked `@!wildcardable`. Suppress with `@diagnostic(off, wildcard_import)` on
-  the import statement to accept the upgrade risk that future versions of the
-  imported module may add conflicting names. The suppression has no effect on
-  an import from a `@!wildcardable` module, where the diagnostic never fires.
+Each diagnostic below can be suppressed at the site indicated with a
+`@diagnostic` attribute, or module-wide with WGSL's
+[global diagnostic directive](https://www.w3.org/TR/WGSL/#global-diagnostic-directive),
+e.g. `diagnostic(off, wildcard_shadow);`.
+
+- **`unsupported_wildcard`** fires on a wildcard import from an external module
+  that doesn't support wildcard import (not marked `@!wildcardable`). Suppress
+  with `@diagnostic(off, unsupported_wildcard)` on the import statement to
+  accept the upgrade risk that future versions of the imported module may add
+  conflicting names. The suppression has no effect on an import from a
+  `@!wildcardable` module, where the diagnostic never fires.
 
 - **`wildcard_shadow`** is a warning that fires on a local declaration or named
   import that shadows a name brought in by a wildcard import. The shadowing is
@@ -418,15 +436,17 @@ The fix is to disambiguate with a named import (`import foo::clashing_zap;`) or
   `@diagnostic(off, wildcard_shadow)` on the shadowing declaration or import
   statement changes only the reporting, not the resolution.
 
-- **`library_wildcard`** is a suppressible error that fires on a cross-package
-  wildcard import in library code (see
+- **`cross_package_wildcard`** is a suppressible error that fires on a
+  cross-package wildcard import in library code (see
   [Library-to-library wildcard imports](#library-to-library-wildcard-imports)).
-  Suppress with `@diagnostic(off, library_wildcard)` on the import statement.
+  Suppress with `@diagnostic(off, cross_package_wildcard)` on the import
+  statement.
 
-- **`builtin_shadow`** fires on a `@!wildcardable` module that exports an item
-  shadowing a WGSL builtin such as `vec3` or `clamp`. Suppress with
-  `@diagnostic(off, builtin_shadow)` in the module if the override is
-  intentional.
+- **`builtin_shadow`** is a warning that fires in a `@!wildcardable` module,
+  on a top-level declaration whose name shadows a WGSL builtin such as `vec3`
+  or `clamp`, whether or not any module wildcard imports it. Suppress with
+  `@diagnostic(off, builtin_shadow)` on the offending declaration if the
+  override is intentional.
 
 ## Scope precedence
 
