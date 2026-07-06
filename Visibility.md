@@ -20,7 +20,7 @@ Every WESL item has one of three visibility levels:
 A module can use an item from another module (named through `import`, or through
 an inline path such as `other_pkg::math::dot2`) only if that item is visible to
 it. A wildcard import silently skips items that are not visible to the importer,
-so a name clash between two wildcard imports is an error only when both items are
+so a name collision between two wildcard imports is an error only when both items are
 visible to the importer (see [Imports.md](Imports.md)).
 
 ### Syntax

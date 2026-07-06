@@ -174,7 +174,10 @@ module.
 ### Resolving a declaration path
 
 A *declaration path* is a fully qualified path whose final segment names a
-declared item. The segments before the final segment are the *module path*,
+declared item. A declaration path always begins with `package` or the name of
+a known package; references written with `super` or bound names expand to
+this form before resolution (see [Import bindings](#import-bindings)).
+The segments before the final segment are the *module path*,
 naming the module containing the declaration. In
 `bevy_pbr::forward_io::VertexOutput`, `VertexOutput` is declared in the
 module named by `bevy_pbr::forward_io`. Each module path names exactly one
@@ -183,32 +186,29 @@ module named by `bevy_pbr::forward_io`. Each module path names exactly one
 The first segment anchors the path:
 
 * `package` anchors the path at the current package.
-* `super` refers to the parent of the current module, removing the last
-  segment of the current module's path. Each additional `super` removes
-  another segment; it is an error to remove beyond the package root.
 * Any other first segment must name a known package, and anchors the path at
   that package. Tools find the known packages in the
   [`wesl.toml`](WeslToml.md) file or through the host package manager's
   dependencies.
 
-A package amounts to a mapping from module paths to module sources; the
+In a written path, a `super` prefix refers to the parent of the current
+module: each `super` removes the last segment of the current module's path,
+and it is an error to remove beyond the package root. The result is a
+declaration path anchored at `package`.
+
+A package provides a mapping from module paths to module sources; the
 semantics of the module path segments beyond the first are specific to the
 package's storage. Only the module path maps to storage; the final segment of
 a declaration path names a declaration inside the module source, never a file.
-The declaration may be declared in the module directly, or re-exported via
-`public import` (see [Visibility.md](Visibility.md)).
-For a package stored on a filesystem, the first segment refers to the
-package's root directory; each following segment except the last names a
-subdirectory, and the last segment of the module path names the source file:
-`seg.wesl`, or `seg.wgsl` when no `.wesl` file exists
-(see [Filesystem Resolution](#filesystem-resolution)). A
-package served over the web can map each module path to a URL, and a bundled
-library can store module sources in a dictionary keyed by module path.
+The declaration may be declared in the module directly, or re-exported in the
+module via `public import` (see [Visibility.md](Visibility.md)).
+How a package maps module paths to sources depends on how it is stored (see
+[Filesystem Resolution](#filesystem-resolution) and
+[Non-Filesystem Resolution](#non-filesystem-resolution)).
 
 A module path may consist of just `package`, or of just a bare package name.
-Such a path refers to the *package module*: on a filesystem,
-the file `package.wesl` in the package's root directory. The package module
-is optional.
+Such a path refers to the optional *package module*
+(see [The package module](#the-package-module)).
 
 Referencing a declaration path that fails to resolve is an error. An import
 statement whose bound name is never referenced is allowed, even if
@@ -227,9 +227,8 @@ wildcard brings the module's top-level declarations into scope.
 
 Resolution finds the declaration; whether the referencing module may then use
 it is governed by [visibility](Visibility.md). For wildcard imports,
-declarations not visible to the importer are silently skipped: a name clash
-between two wildcard imports is an error only when both declarations are
-visible to the importer.
+declarations not visible to the importer are silently skipped
+(see [Visibility.md](Visibility.md)).
 
 ### Examples
 
@@ -266,41 +265,41 @@ determines the declaration path `package::lighting::shadowmapping::pcf`,
 referring to a function `pcf` declared in `lighting/shadowmapping.wesl` (not
 shown).
 
-## `wesl.toml`
-The [`wesl.toml`](WeslToml.md) file provides linker configuration options affecting import resolution. It can customize:
+## The package module
 
-* The root directory,
-* Available package dependencies,
-* A file whitelist and/or blacklist.
+A package may optionally provide a top-level *package module*: a module named
+`package` at the root of the package's module path, typically from a file or
+resource named `package.wesl`.
+
+A declaration `fn foo` in the package module is addressable from outside the
+package as `my_pkg::foo`, and from within the package as `package::foo`.
+
+A `package` module is only allowed at the top level; tools should warn about a
+module named `package` anywhere else.
 
 ## Filesystem Resolution
-To resolve a module on a filesystem, one follows the mapping in
-[Resolving a declaration path](#resolving-a-declaration-path). It traces a path from a known starting
-directory (a package's root directory, or for `super` an enclosing directory of
-the current module) through any subdirectories to the module's `.wesl` or
-`.wgsl` file. The starting directory is always known: each module's path is
-fixed relative to its package's root directory, which the linker takes from a
-`wesl.toml` file or its own configuration.
+On a filesystem, a module path maps directly to a single file, following
+[Resolving a declaration path](#resolving-a-declaration-path). The first
+segment corresponds to the
+package's root directory, each intermediate segment names a subdirectory, and
+the last segment names the module's `.wesl` file (or `.wgsl` when no `.wesl`
+file exists).
 
-### `package.wesl`
-
-`package.wesl` is the file backing a package's top-level module, placed at the
-package's root directory (the directory named by the package's
-[`root`](WeslToml.md#root-field)). Items declared in or `public import`ed from
-`package.wesl` are reachable as `<package>::item`.
-
-`package.wesl` is optional. Without `package.wesl`, there are no top-level items
-to resolve as `<package>::item`, but `<package>::submodule::item` still works.
-
-`package.wesl` is special only in the root directory. Elsewhere it cannot be
-used: `package` is a reserved keyword and not a legal module name. Tools such as
-the language server should warn about a misplaced `package.wesl`.
+WESL tools typically find the package's root directory from
+[`wesl.toml`](WeslToml.md#root-field) or from the host package manager.
 
 ### Reserved file names
 
 Due to filesystem limitations, it can happen that WESL idents are invalid file or folder names.
 Notable examples are `CON, PRN, AUX, NUL, COM1 - COM9, LPT1 - LPT9` on Windows, and Windows being case-insensitive.
 We do not take these restrictions into account, instead we just recommend that WESL programmers avoid these special names.
+
+## Non-Filesystem Resolution
+
+WESL resolution doesn't require a filesystem. It only requires a mapping from
+module paths to module sources: a bundled package can store module sources in a
+dictionary keyed by module path, and a package served over the web can map each
+module path to a URL.
 
 ## Inline Usage
 The syntax can also be used inline. To do so, we extend
