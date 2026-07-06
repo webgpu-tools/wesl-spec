@@ -22,6 +22,10 @@ import my::geom::sphere::{ draw, default_radius as foobar };
 
 // Imports a whole module. Use it with `bevy_ui::name`
 import bevy_ui;
+
+// Import all items from another module
+import bevy::prelude::*;
+import wgsl_test::expect::*;
 ```
 
 These can then be used anywhere in the source code.
@@ -66,7 +70,7 @@ translation_unit:
 | import_statement* global_directive* global_decl* 
 
 import_statement:  
-| 'import' import_relative? (import_collection | import_path_or_item) ';'  
+| attribute* 'import' import_relative? (import_collection | import_path_or_item) ';'  
 
 import_relative:
 | 'package' '::' | 'super' '::' ('super' '::')*
@@ -74,6 +78,7 @@ import_relative:
 import_path_or_item:
 | ident '::' (import_collection | import_path_or_item) 
 | ident ('as' ident)?
+| '*'
 
 import_collection:
 | '{' (import_path_or_item) (',' (import_path_or_item))* ','? '}'
@@ -91,6 +96,25 @@ An item import imports a single item. The item can be renamed with the `as` keyw
 
 An import collection imports multiple items, and allows for nested imports.
 
+A wildcard import imports all top-level declarations from a module. Submodule names and submodule contents are not imported. A wildcard must follow a module path; a bare `import *;` is an error. A wildcard may also appear as a member of an import collection, applying to the module path before the braces (see [Import resolution algorithm](#import-resolution-algorithm)).
+
+WESL also extends WGSL's `global_directive` rule with a *module attribute*: a `@!`-prefixed attribute that carries module-level metadata. It is used by `@!wildcardable` (see [Wildcard imports](#wildcard-imports)) and reserved for future module-level metadata.
+
+```ebnf
+global_directive:
+| ... // existing WGSL forms
+| module_attribute_directive
+
+module_attribute_directive:
+| '@' '!' ident_pattern_token argument_expression_list? ';'
+```
+
+A module attribute is written like a WGSL `attribute` with a `!` immediately
+after the `@`, and is terminated with `;`; `ident_pattern_token` and
+`argument_expression_list` are the WGSL rules. Like other global directives,
+module attributes appear after any imports and before any global declarations,
+and apply to the module they appear in.
+
 ### Import resolution algorithm
 
 To resolve the import, the recursive structure is flattened out. This means turning every `import_collection` into multiple separate imports, ending with the items.
@@ -102,6 +126,17 @@ import a::c::d;
 import a::c::e as f;
 ```
 
+A wildcard may appear as a member of an import collection:
+`import foo::{a::b, *};` becomes
+
+```wesl
+import foo::a::b;
+import foo::*;
+```
+
+The wildcard imports only `foo`'s own top-level declarations: the sibling
+branch reaching into submodule `foo::a` doesn't widen it.
+
 Then, one iterates over each segment from left to right, and looks it up one by one.
 
 1. We start with the first segment.
@@ -111,8 +146,9 @@ Then, one iterates over each segment from left to right, and looks it up one by 
 2. We take that as the "current module".
 3. We repeatedly look at the next segment.
     1. Item in current module: Take that item. We must be at the last segment, otherwise it's an error.
-    2. (Else if re-exported or inline module in current module: We continue with that module.)
-    3. Else go to `current module path/ident.wesl`
+    2. Wildcard import: Take all items in the current module.
+    3. (Else if re-exported or inline module in current module: We continue with that module.)
+    4. Else go to `current module path/ident.wesl`
        * File found: We take that file as the current module.
        * File not found: We assume an empty module as the current module, and continue with that.
        * (Re-exporting changes the path.)
@@ -121,10 +157,7 @@ Then, one iterates over each segment from left to right, and looks it up one by 
 To get an absolute path to a module, one follows the algorithm above. In step 1, one takes the known absolute path of the `super` module, or the package.
 The absolute path of the `super` module is always known, since the first loaded WESL file must always be the root module, and children are only discovered from there.
 
-Once the import has been resolved, the last segment, or its alias, is brought into scope.
-
-The order of the scopes is "user declarations and imported items > package names > predeclared items".
-This lets WGSL add more predeclared items without breaking existing WESL code. Package names can shadow predeclared items, but we recommend that authors avoid doing that.
+Once the import has been resolved, the last segment, or its `as` alias, is brought into scope.
 
 
 ### Example
@@ -245,6 +278,199 @@ const b = a + 1;
 
 Basic linker implementations do not need to check for this. Generating broken code and letting the underlying shader compiler throw an error is fine.
 
+## Wildcard imports
+
+Wildcard imports bring all items from another module into the importing module's
+scope.
+
+Users can wildcard import:
+- from any other module in the local package.
+- from any external library module where the library author has added a
+  `@!wildcardable` annotation.
+
+Wildcard importing brings some stability risk when the imported module adds to
+its API. The newly introduced names may conflict with other names in the
+importer's namespace (from local definitions and other imports), leading to
+compiler warnings or errors. To help mitigate this risk, WESL provides a
+`@!wildcardable` annotation that library authors can place on modules that are
+designed for wildcard importing.
+
+Advanced users who wish to wildcard import from external modules not marked as
+`@!wildcardable` can do so by suppressing `unsupported_wildcard` (see
+[Suppressible diagnostics](#suppressible-diagnostics)).
+
+```wesl
+// wildcard import from a @!wildcardable external
+import bevy::prelude::*;
+import wgsl_test::expect::*;
+
+// wildcard import from within the local package
+import package::utils::*;
+import super::fun::*;
+```
+
+### `@!wildcardable` annotation
+
+Library authors mark modules they intend for library consumers to wildcard
+import with the `@!wildcardable;` module attribute (see [Grammar](#grammar)):
+
+```wesl
+// math.wesl  (in a library)
+@!wildcardable;
+
+fn dot2(a: vec2f, b: vec2f) -> f32 { return a.x*b.x + a.y*b.y; }
+fn cross2(a: vec2f, b: vec2f) -> f32 { return a.x*b.y - a.y*b.x; }
+```
+
+### Recommendations for `@!wildcardable` modules
+
+Because every name in a `@!wildcardable` module is a potential collision in
+importer code, library authors should curate these modules carefully.
+
+**Add hesitantly.** Additions to a `@!wildcardable` module are semver minor
+version bumps but can break users who have local declarations or import other
+`@!wildcardable` modules.
+- **Bundle** additions into a major release when one is upcoming.
+- **Document** additions clearly in changelogs so downstream users debugging
+  unexpected name resolution can trace them.
+
+**Compose with re-exports.** See [Re-exports](#re-exports) (TBD) to collect
+items from other modules into a single `@!wildcardable` module for user
+convenience.
+
+**Avoid generic names.** Prefer domain-specific names. Common names like
+`Buffer`, `Config`, `Result`, `Vec`, etc. are more likely to collide with user
+applications.
+
+**Don't shadow WGSL builtins.** Names like `vec3`, `clamp`, `inverseSqrt` have
+expected semantics that oughtn't be implicitly overridden with wildcards.
+Similarly, avoid experimental Naga/Dawn/Safari builtins.
+- The `builtin_shadow` diagnostic flags this (see
+  [Suppressible diagnostics](#suppressible-diagnostics)).
+- If a future WGSL update adds a conflicting builtin name, plan to update the
+  `@!wildcardable` module to rename the conflicting item.
+
+### Library-to-library wildcard imports
+
+Libraries that wildcard import from other libraries raise special concerns. If a
+user's package manager chooses a newer version of the imported-from library,
+the user may see a conflict in library code they don't expect to modify.
+
+Cross-package wildcard imports in library code
+trigger the `cross_package_wildcard` diagnostic, a suppressible error. Library
+authors can suppress the diagnostic with
+`@diagnostic(off, cross_package_wildcard)` on the import statement, e.g. when
+wildcard importing from external packages they control.
+
+**Optional: publish-time wildcard expansion.** Library publishing tools may
+also offer to expand wildcards to named imports in the published version of a
+module, snapshotting the names at publish time:
+
+```wesl
+// source
+import bevy::prelude::*;
+```
+
+```wesl
+// published artifact
+import bevy::prelude::{Color, Mesh, Transform, /* snapshot at publish time */};
+```
+
+Expansion pins the imported names so that a newer version of the imported-from
+library can't introduce conflicts into already-published code.
+
+## Import errors and warnings
+
+WESL emits errors for name collisions and for unsupported wildcard imports,
+and warnings for shadowing that could surprise readers. Genuine
+collisions cannot be suppressed; other diagnostics are suppressible via
+`@diagnostic`.
+
+| Situation | Behavior |
+| --- | --- |
+| Local declaration conflicts with named import | Error |
+| Named import conflicts with named import | Error |
+| Wildcard import conflicts with wildcard import (when name is referenced) | Error |
+| Wildcard import from a non-`@!wildcardable` external module | Error (`unsupported_wildcard`) on the import; suppressible |
+| Cross-package wildcard import in library code | Error (`cross_package_wildcard`) on the import; suppressible |
+| Local declaration or named import shadows a wildcard-imported name | Warning (`wildcard_shadow`) on the shadowing declaration or import; suppressible |
+| `@!wildcardable` module exports an item shadowing a WGSL builtin | Warning (`builtin_shadow`) on the shadowing declaration; suppressible |
+
+When multiple wildcard imports are in scope, the same name may be exported by
+more than one module. If every wildcard resolves the name to the same
+declaration, references are unambiguous and no error occurs. A name that could
+refer to two different declarations is a dormant conflict: an error occurs
+only where the name is referenced:
+
+```wesl
+import foo::*; // exports clashing_zap
+import bar::*; // exports a different clashing_zap
+
+fn main() {
+    let x = clashing_zap(); // error: ambiguous between foo::clashing_zap and bar::clashing_zap
+}
+```
+
+The fix is to disambiguate with a named import (`import foo::clashing_zap;`,
+or `import foo::{clashing_zap, *};` to keep the wildcard) or an
+[inline module path](#inline-usage) (`foo::clashing_zap()`).
+
+### Suppressible diagnostics
+
+Each diagnostic below can be suppressed at the site indicated with a
+`@diagnostic` attribute, or module-wide with WGSL's
+[global diagnostic directive](https://www.w3.org/TR/WGSL/#global-diagnostic-directive),
+e.g. `diagnostic(off, wildcard_shadow);`.
+
+- **`unsupported_wildcard`** fires on a wildcard import from an external module
+  that doesn't support wildcard import (not marked `@!wildcardable`). Suppress
+  with `@diagnostic(off, unsupported_wildcard)` on the import statement to
+  accept the upgrade risk that future versions of the imported module may add
+  conflicting names. The suppression has no effect on an import from a
+  `@!wildcardable` module, where the diagnostic never fires.
+
+- **`wildcard_shadow`** is a warning that fires on a local declaration or named
+  import that shadows a name brought in by a wildcard import. The shadowing is
+  allowed: the local declaration or named import wins by precedence
+  (see [Scope precedence](#scope-precedence)). Suppressing the warning with
+  `@diagnostic(off, wildcard_shadow)` on the shadowing declaration or import
+  statement changes only the reporting, not the resolution.
+
+- **`cross_package_wildcard`** is a suppressible error that fires on a
+  cross-package wildcard import in library code (see
+  [Library-to-library wildcard imports](#library-to-library-wildcard-imports)).
+  Suppress with `@diagnostic(off, cross_package_wildcard)` on the import
+  statement.
+
+- **`builtin_shadow`** is a warning that fires in a `@!wildcardable` module,
+  on a top-level declaration whose name shadows a WGSL builtin such as `vec3`
+  or `clamp`, whether or not any module wildcard imports it. Suppress with
+  `@diagnostic(off, builtin_shadow)` on the offending declaration if the
+  override is intentional.
+
+## Scope precedence
+
+When a name could resolve to items at multiple precedence levels, the
+highest-precedence one wins. The table in
+[Import errors and warnings](#import-errors-and-warnings) describes whether
+such a resolution is silent, produces a warning, or produces an error.
+
+1. user declarations and named imports (non-wildcard)
+2. wildcard-imported names
+3. package names
+4. predeclared items (WGSL builtins)
+
+User declarations and named imports share the top precedence level: a conflict
+between them is an error, so at most one candidate can exist at that level.
+
+Predeclared items rank lowest so that future WGSL spec revisions can add new
+builtins without breaking existing shaders: any name already bound at a higher
+level continues to resolve as before. Wildcard-imported names rank below user
+declarations and named imports for the analogous reason: additions to a
+`@!wildcardable` module won't silently change resolution at call sites that
+already have a local or named binding for the same name. Wildcard imports bring
+in only the imported module's top-level declarations, not package names.
+
 ## Directives
 Under discussion, see: <https://github.com/webgpu-tools/wesl-spec/issues/71>
 
@@ -268,19 +494,19 @@ This only refers to the exact module that an element is in, and not any of the p
 Example:
 
 ```wgsl
-​​​​// main.wesl:
-​​​​import foo::bar;
-​​​​fn main() { bar(); }
+// main.wesl:
+import foo::bar;
+fn main() { bar(); }
 
-​​​​// foo.wesl:
-​​​​import zig::zag;
-​​​​const_assert(1 > 0); // included in link because bar is used
-​​​​fn bar() { }
-​​​​fn miz() { zag() }
+// foo.wesl:
+import zig::zag;
+const_assert(1 > 0); // included in link because bar is used
+fn bar() { }
+fn miz() { zag() }
 
-​​​​// zig.wesl:
-​​​​const_assert(2 < 0); // not included in link
-​​​​fn zag() { }
+// zig.wesl:
+const_assert(2 < 0); // not included in link
+fn zag() { }
 ```
 
 Example
