@@ -255,6 +255,10 @@ The following non-terminals are added or modified. Global declarations get exten
     | ...
 
     translate_time_attribute:
+      known_translate_time_attribute
+    | '@' Ident argument_expression_list
+
+    known_translate_time_attribute:
       '@' 'if' '(' expression ',' ? ')'
     | '@' 'elif' '(' expression ',' ? ')'
     | '@' 'else'
@@ -263,7 +267,7 @@ The following non-terminals are added or modified. Global declarations get exten
       '@' ident_pattern_token argument_expression_list ?
     | align_attr
     | ...
-    | translate_time_attribute
+    | known_translate_time_attribute
 ```
 
 ### Possible extensions
