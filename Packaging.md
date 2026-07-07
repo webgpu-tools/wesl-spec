@@ -4,34 +4,35 @@ WESL enables shader packages for reusing shader code by other packages or applic
 
 ## Using shader packages
 
-Dependencies for your application are defined in the [`wesl.toml`] file.
 The WESL linker is responsible for finding and downloading dependencies: [wesl-js] will fetch packages from [npm], while [wesl-rs] will fetch them from [crates.io].
-Inside your shader modules, you can reach declarations in dependencies with import paths, as explained in [imports].
+The package dependencies of a shader project are either discovered automatically by the WESL linker, or explicitly listed in the `dependencies` section of [`wesl.toml`].
+Inside shader modules, one can reach declarations in dependencies with import paths, as explained in [imports].
 
 ## Creating and publishing shader packages
 
 Any [`wesl.toml`] file declares a new shader package, which can be published using the linker's CLI.
-Publishing packages is implementation-specific, follow the instructions for your linker ([wesl-js] or [wesl-rs]).
+Publishing packages is implementation-specific, linkers ([wesl-js] or [wesl-rs]) provide documentation on how to publish to their respective package repositories.
 
 ### Package naming guidelines
 
-You can publish your package with whatever name you like. We however recommend following these guidelines so your package can be easily found and consumed by end users.
+A package can be published under any name. We however recommend following these guidelines, so the package can be easily found and consumed by end users.
 
 * Use a name that is also a valid WGSL identifier. Otherwise, end-users will have to rename it in [`wesl.toml`].
 * Add the `_wgsl` suffix to the name: `mypackage_wgsl`.
 * Use snake_case (underscores to separate words): `my_great_package_wgsl`.
 * If your package is part of a larger project, or produced by a company, you can prefix it with that name: `mycompany_mypackage_wgsl`.
-  * For [wesl-js] specifically, you can use the common naming convention `@mycompany/mypackage_wgsl`
+  * For [wesl-js] specifically, you can use the common naming convention `@mycompany/mypackage_wgsl`.[^1]
 * Look for packages with the same name in both [npm] and [crates.io].
   * It is courtesy to leave the name free for the original author if they wish to publish to the other registry.
   * It also avoids confusion for end-users who may think it is the same package.
 
+[^1]: When a package name contains `/` or `@`, [wesl-js] will sanitize it to become a valid WGSL identifier. Refer to its documentation for more information.
+
 ## Semver-compatibility and dependency unification
 
-(TODO: unification with param const?)
-
-If two packages in the dependency tree are [semver-compatible](https://semver.org/), npm or Cargo will likely unify them, meaning it will include only one version of the package in its output (often the highest semver-compatible version available).
-This unification can have observable side-effects that a user must be wary of. Module-scope declarations may, or may not be duplicated.
+[wesl-js] and [wesl-rs] both delegate package installation and version management to npm or Cargo. 
+These package managers typically apply  _dependency version unification_: if two packages in the dependency tree are [semver-compatible](https://semver.org/), the package manager installs only one version of the package, often the latest semver-compatible version available. 
+For WESL, dependency unification can have observable side-effects; for instance, module-scope declarations may or may not be duplicated.
 
 ### Example
 
@@ -47,14 +48,15 @@ fn rand() -> f32 {
 }
 ```
 
-Here, the `random::rand()` function has internal state represented by `prng_state`.
-If two packages depend on semver-compatible versions of `random`, then they would share that internal state.
-If however they depend on non-semver-compatible versions, two copies of the state and the `rand()` function can be used, suddenly producing different results.
+In this example, the `random::rand()` function has internal state represented by `prng_state`.
+If two packages depend on semver-compatible versions of `random`, there will be two copies the `rand()` function and its internal state. Calls to `rand()` from both packages refer to the same declaratione.
+If however they depend on non-semver-compatible versions, there will be two copies the `rand()` function and its internal state. Calls to `rand()` from both packages refer to distinct declarations.
 
 ## Visibility
 
-All declarations reachable from a direct dependency's root module can be accessed from the parent package.
-Declarations in indirect dependencies (i.e., dependencies of dependencies) are never reachable.
+A package can only import declarations in its direct dependencies, using an import statement or an inline import (see [imports]). 
+It cannot import declarations in its indirect dependencies (i.e., dependencies of dependencies).
+Declarations in indirect dependencies can be indirectly used by the package, for instance if a direct dependency provides a function which calls a function in one of its dependencies.
 
 Future iterations of WESL may introduce a re-export and/or visibility control mechanism. See [visibility].
 
@@ -66,3 +68,4 @@ Future iterations of WESL may introduce a re-export and/or visibility control me
 [visibility]: Visibility.md
 [wesl-js]: https://github.com/wgsl-tooling-wg/wesl-js
 [wesl-rs]: https://github.com/wgsl-tooling-wg/wesl-rs
+
