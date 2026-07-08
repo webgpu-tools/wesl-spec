@@ -147,7 +147,8 @@ branch reaching into submodule `foo::a` doesn't widen it.
 
 Each flattened import statement binds one name in the importing module: the
 last segment of its *import path*, or its `as` alias. The binding is a
-shorthand for the import path. Each *reference*, a use of a name in code
+shorthand for the import path; the import path itself need not name a module or
+declaration. Each *reference*, a use of a name in code
 (such as in a function call, type, attribute argument, or other expression),
 determines a declaration path: a bound name expands to its import path, and
 any `::` segments written after it extend the path
@@ -218,10 +219,6 @@ imports. Import statements and references removed by
 if they would be errors under other conditions; tools may warn about these
 too.
 
-Tools can enumerate the potential resolutions an import statement
-enables by analyzing the source tree paths and the declarations in each
-module source, for example to suggest editor auto-completions.
-
 For a wildcard import, the entire path before the `*` is a module path; the
 wildcard brings the module's top-level declarations into scope.
 
@@ -229,6 +226,11 @@ Resolution finds the declaration; whether the referencing module may then use
 it is governed by [visibility](Visibility.md). For wildcard imports,
 declarations not visible to the importer are silently skipped
 (see [Visibility.md](Visibility.md)).
+
+> [!NOTE]
+> Tools can enumerate the potential resolutions an import statement
+> enables by analyzing the source tree paths and the declarations in each
+> module source, for example to suggest editor auto-completions.
 
 ### Examples
 
