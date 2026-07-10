@@ -143,10 +143,6 @@ fn f() { ... }
 ```
 
 
-
-Design note:
-To keep the grammar [LR(1)](https://en.wikipedia.org/wiki/LR_parser), all translate time attributes are unambiguously specified in the formal grammar. This allows for translate time attributes before assignment, increment and decrement statements starting with a `(`. A concrete example is `@if(FOO) (x)++`.
-
 ## Execution of the conditional translation phase
 1. The *WESL translator* is invoked with the list of features to *enable* or *disable*.
 
@@ -174,17 +170,17 @@ If the *WESL translator* does not support incremental translation, it is a *link
 > *It is not an error to provide unused feature flags to the linker. However, an implementation may choose to display a warning in that case.*
 
 ## Appendix: Updated grammar
-The following non-terminals are added or modified. Global declarations get extended to handle general attributes to support future experiments such as `@deprecated`. Everything else is extended with the more restricted `translate_time_attribute`:
+The following non-terminals are added or modified. Global declarations get extended to handle general attributes to support future experiments such as `@deprecated`. Everything else is extended with the more restricted `unambiguous_attribute`:
 
 ```grammar
     diagnostic_directive :
-      translate_time_attribute * 'diagnostic' diagnostic_control ';'
+      unambiguous_attribute * 'diagnostic' diagnostic_control ';'
 
     enable_directive :
-      translate_time_attribute * 'enable' enable_extension_list ';'
+      unambiguous_attribute * 'enable' enable_extension_list ';'
 
     requires_directive :
-      translate_time_attribute * 'requires' software_extension_list ';'
+      unambiguous_attribute * 'requires' software_extension_list ';'
 
     struct_decl :
       attribute * 'struct' ident struct_body_decl
@@ -193,10 +189,10 @@ The following non-terminals are added or modified. Global declarations get exten
       attribute * 'alias' ident '=' type_specifier
 
     variable_or_value_statement :
-      translate_time_attribute * variable_decl
-    | translate_time_attribute * variable_decl '=' expression
-    | translate_time_attribute * 'let' optionally_typed_ident '=' expression
-    | translate_time_attribute * 'const' optionally_typed_ident '=' expression
+      unambiguous_attribute * variable_decl
+    | unambiguous_attribute * variable_decl '=' expression
+    | unambiguous_attribute * 'let' optionally_typed_ident '=' expression
+    | unambiguous_attribute * 'const' optionally_typed_ident '=' expression
 
     variable_decl :
       'var' _disambiguate_template template_list ? optionally_typed_ident
@@ -212,41 +208,41 @@ The following non-terminals are added or modified. Global declarations get exten
       attribute * 'default' ':' ? compound_statement
 
     assignment_statement :
-      translate_time_attribute * lhs_expression ( '=' | compound_assignment_operator ) expression
-    | translate_time_attribute * '_' '=' expression
+      unambiguous_attribute * lhs_expression ( '=' | compound_assignment_operator ) expression
+    | unambiguous_attribute * '_' '=' expression
 
     increment_statement :
-      translate_time_attribute * lhs_expression '++'
+      unambiguous_attribute * lhs_expression '++'
 
     decrement_statement :
-      translate_time_attribute * lhs_expression '--'
+      unambiguous_attribute * lhs_expression '--'
 
     break_statement :
-      translate_time_attribute * 'break'
+      unambiguous_attribute * 'break'
 
     break_if_statement :
-      translate_time_attribute * 'break' 'if' expression ';'
+      unambiguous_attribute * 'break' 'if' expression ';'
 
     continue_statement :
-      translate_time_attribute * 'continue'
+      unambiguous_attribute * 'continue'
      
     continuing_statement :
-      translate_time_attribute * 'continuing' continuing_compound_statement
+      unambiguous_attribute * 'continuing' continuing_compound_statement
 
     return_statement :
-      translate_time_attribute * 'return' expression ?
+      unambiguous_attribute * 'return' expression ?
     
     discard_statement:
-      translate_time_attribute * 'discard'
+      unambiguous_attribute * 'discard'
 
     func_call_statement :
-      translate_time_attribute * call_phrase
+      unambiguous_attribute * call_phrase
 
     global_assert :
-      translate_time_attribute * const_assert
+      unambiguous_attribute * const_assert
 
     assert_statement :
-      translate_time_attribute * const_assert
+      unambiguous_attribute * const_assert
 
     statement :
       ';'
@@ -254,25 +250,25 @@ The following non-terminals are added or modified. Global declarations get exten
     | discard_statement ';'
     | ...
 
-    translate_time_attribute:
-      known_translate_time_attribute
-    | '@' Ident argument_expression_list
-
-    known_translate_time_attribute:
-      '@' 'if' '(' expression ',' ? ')'
+    unambiguous_attribute:
+      '@' ident_pattern_token argument_expression_list
+    | '@' 'if' '(' expression ',' ? ')'
     | '@' 'elif' '(' expression ',' ? ')'
     | '@' 'else'
       
     attribute :
-      '@' ident_pattern_token argument_expression_list ?
+      '@' ident_pattern_token
+    | unambiguous_attribute
     | align_attr
     | ...
-    | known_translate_time_attribute
 ```
+
+> [!NOTE]
+> No alternative of `unambiguous_attribute` has an *optional* argument list, so a parser always knows where the attribute ends. `attribute` lets the argument list be omitted, which is ambiguous before a statement: in `@foo (x)++`, the `(x)` could be `@foo`'s argument or the start of the statement. Using `unambiguous_attribute` keeps the grammar [LR(1)](https://en.wikipedia.org/wiki/LR_parser) and allows`@if(FOO) (x)++`.
 
 ### Possible extensions
 
-The `@else` attribute has the nice property that all cases lead to generating a node, and *could* therefore be used in places where the node is required (e.g. expressions)
+* The `@else` attribute has the nice property that all cases lead to generating a node, and *could* therefore be used in places where the node is required (e.g. expressions)
 
 
 
