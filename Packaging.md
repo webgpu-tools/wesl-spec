@@ -16,7 +16,7 @@ Packages' contents are reachable from user code via module paths prefixed with t
 The package name in shader code is the same as the name published on [npm] or [crates.io], with two exceptions:
 
 1. The name is sanitized to remove certain common symbols that are invalid in WGSL identifiers (see following section).
-2. The name can be overriden in the dependencies list in [`wesl.toml`], e.g. `wgsl_name = { package = "@published/name" }`.
+2. The name can be overridden in the dependencies list in [`wesl.toml`], e.g. `wgsl_name = { package = "@published/name" }`.
 
 If after these operations, the shader name is still not a valid WGSL identifier, the package will not be reachable from user code.
 
