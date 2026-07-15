@@ -35,7 +35,7 @@ _Example: a package published on npm with the name `my-package-wgsl` can be impo
 
 ### Package naming guidelines
 
-A package can be published under any name matching the requrements of the section above. We however recommend following these guidelines, so the package can be easily found and consumed by end users.
+A package can be published under any name matching the requirements of the section above. We however recommend following these guidelines, so the package can be easily found and consumed by end users.
 
 * Use a name that is also a valid WGSL identifier. Otherwise, end-users will have to rename it in [`wesl.toml`].
 * Add the `_wgsl` suffix to the name: `mypackage_wgsl`.
