@@ -25,7 +25,9 @@ normative spec lives in [Visibility.md](Visibility.md).
   * [Canonical prelude path](#canonical-prelude-path)
   * [Re-export widening from root](#re-export-widening-from-root)
   * [Wildcard re-export](#wildcard-re-export)
-  * [Diagnosing leaked types](#diagnosing-leaked-types)
+  * [Member visibility](#member-visibility)
+  * [Diagnosing less-visible types in public
+    APIs](#diagnosing-less-visible-types-in-public-apis)
 
 ## Why three levels and not two
 
@@ -203,13 +205,22 @@ declared `public` at their definition, leaving the original module path
 reachable too. Restricting reach to a single canonical path is sketched under
 [Future possibilities](#future-possibilities).
 
-A `public alias` can still republish a less-visible type under a public name
-(`public alias Exposed = InternalStuff;`). The alias creates a new declaration
-rather than changing the original item's visibility. Like a public wrapper
-function around a *package* function, it explicitly adds a package-owned item to
-the public API. It belongs to the same family as a `public` signature naming a
-less-visible type; see [Diagnosing leaked types](#diagnosing-leaked-types),
-which would naturally cover aliases too.
+The rule also applies to an alias whose target resolves through aliases to a
+declared structure type. A WGSL alias introduces another name for the same type
+and preserves its value constructors and members. When `InternalStuff`
+ultimately denotes a less-visible structure type, `public alias Exposed =
+InternalStuff;` would make that type nameable and constructible at `public`
+visibility even though its declaration restricts it. Intermediate aliases do
+not change the type or impose their own visibility on a later alias, so a
+`public` alias may name a less-visible alias for a `public` structure type.
+
+A less-visible type that appears in a `public` function signature, a member of a
+`public` struct, or within an alias target whose resolved target is composite is
+different: none of those declarations introduces another name for the
+less-visible type itself. Consumers can use values they are handed but cannot
+name that type or construct new values of it. Those uses remain permitted; see
+[Diagnosing less-visible types in public
+APIs](#diagnosing-less-visible-types-in-public-apis).
 
 ## Why not infer the pipeline-visible API?
 
@@ -226,8 +237,8 @@ host-visible names. Their WESL declaration paths use `::`, which WGSL
 identifiers cannot contain, while their bare names can collide in WGSL's flat
 namespace. A linker must therefore encode the paths or otherwise mangle the
 names. Even if WESL standardized that encoding, host code could not use WESL
-paths directly. It would have to reproduce the encoding or use a WESL-aware
-host library to translate them, and moving a declaration could still change its
+paths directly. It would have to reproduce the encoding or use a WESL-aware host
+library to translate them, and moving a declaration could still change its
 host-facing name. Because host references may be strings in any host language,
 WESL tools could not reliably find or update them when that name changes.
 
@@ -269,7 +280,9 @@ The curated-prelude pattern leaves an item's original module path reachable
 alongside the prelude path, so internal module layout is part of what consumers
 can reach. A `@canonical` annotation on the re-export could mark the prelude
 path as the intended one, letting tooling steer consumers to it (and flag use of
-the original path) without any change to name resolution.
+the original path) without any change to name resolution. Stronger designs that
+make the original path unreachable (module visibility controls) are collected in
+[#202](https://github.com/webgpu-tools/wesl-spec/issues/202).
 
 ### Re-export widening from root
 
@@ -298,18 +311,25 @@ has wildcard imports. Publishing tools (see
 [#183](https://github.com/webgpu-tools/wesl-spec/issues/183)) could also expand
 wildcard re-exports at publish time into explicit named re-exports.
 
-### Diagnosing leaked types
+### Member visibility
 
-A `public` declaration may name a less-visible type in its signature or fields
-(see
+The current design does not restrict struct member access. A module that obtains
+a struct value may read its members even if the struct type is not visible in
+that module.
+
+A future extension could support opaque or partially opaque structs by
+restricting member access and value construction separately from type
+visibility. Unmarked members would remain accessible for WGSL compatibility. The
+syntax and whether restrictions use module or package boundaries remain open.
+
+### Diagnosing less-visible types in public APIs
+
+A less-visible type may appear in a `public` function signature, a member of a
+`public` struct, or within a `public` alias target whose resolved target is a
+composite type (see
 [Referring to less-visible declarations](Visibility.md#referring-to-less-visible-declarations)).
-This can be intentional, but it can also be an accident that quietly narrows
-what a consumer can do with a public API. Tools could warn when a `public`
+When a public API exposes a less-visible struct value, its readable members can
+become source-compatibility constraints for the author even though the struct
+declaration is not public. A future diagnostic could warn when a `public`
 declaration mentions a less-visible type, with a suppression such as
 `@diagnostic(off, leaked_type)` for the deliberate cases.
-
-The current spec permits it with no diagnostic. There is little WESL usage
-evidence to show whether a warning would be useful or which uses are deliberate.
-A warning is additive, so it can be introduced later without breaking any
-program that links today. (Rust also began with a strict rule and relaxed it in
-[RFC 2145](https://rust-lang.github.io/rfcs/2145-type-privacy.html).)

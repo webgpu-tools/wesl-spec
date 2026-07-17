@@ -24,6 +24,18 @@ it. A wildcard import omits items that are not visible to the importer. A name
 collision between two wildcard imports is therefore an error only when both
 items are visible (see [Wildcard imports](Imports.md#wildcard-imports)).
 
+> [!NOTE]
+> Small applications generally need no visibility keywords. Unmarked items are
+> visible throughout the package, so modules can share helpers and types without
+> additional syntax. Unmarked entry points, resource variables, and overrides
+> declared in the root module are
+> [pipeline-visible](#pipeline-visibility), so a plain WGSL program can serve as
+> a WESL root unchanged.
+>
+> Larger applications and libraries can use `private` to keep implementation
+> details within their declaring modules. An item must be `public` to cross a
+> package boundary or to be re-exported.
+
 ### Syntax
 
 A visibility keyword may prefix any item declaration, between any attributes
@@ -75,21 +87,53 @@ can have a field of a less-visible type. A consumer that cannot see the type can
 still use a value of it (call the function, read its fields) but cannot name the
 type to declare a variable, import it, or construct a new value.
 
-Naming a less-visible type in a `public` signature or field is permitted with no
-diagnostic.
+Naming a less-visible type in a `public` function signature or a member of a
+`public` struct is permitted with no diagnostic.
+
+```wesl
+// mesh_lib/geometry.wesl
+struct Mesh { vertices: u32 }            // package-visible (the default)
+public fn make_mesh() -> Mesh { ... }    // returns a package-visible type
+// public alias Exposed = Mesh;          // error: alias more visible than Mesh
+
+// app/main.wesl  (root)
+import mesh_lib::geometry::make_mesh;
+// import mesh_lib::geometry::Mesh;      // error: Mesh is package-visible only
+
+fn count_vertices() -> u32 {
+  let m = make_mesh();    // ok: uses a Mesh value without naming Mesh
+  return m.vertices;      // ok: reads a field of the value
+}
+```
+
+An alias whose target resolves through any chain of aliases to a declared
+structure type must not be more visible than the structure declaration. A WGSL
+alias introduces another name for the same type and preserves its value
+constructors and members. A more-visible alias would therefore make the type
+nameable and constructible outside its visibility boundary (see
+[A re-export cannot widen visibility](#a-re-export-cannot-widen-visibility)).
+The visibility of an intermediate alias does not constrain a later alias. For
+example, `public alias Shared = Local;` is permitted when `Local` is a
+*package*-visible alias for a `public` structure type.
+
+An alias whose resolved target is a composite type may mention a less-visible
+type without aliasing that type directly. For example,
+`public alias Meshes = array<Mesh, 4>;` is permitted.
 
 ## Re-exports
 
 `public import` re-exports the imported names under the current module's path,
 in addition to bringing them into local scope. It re-exports individual items,
-not whole modules.
+not whole modules. A re-export adds another path to the same declaration, so
+one item can be reachable under several paths (see
+[Re-export identity](#re-export-identity)).
 
 ```wesl
 // my_lib/prelude.wesl
-@!wildcardable;   // lets external importers use `prelude::*`
-
 public import super::math::{dot2, cross2};
 public import super::types::Mesh as M;
+
+@!wildcardable;   // lets external importers use `prelude::*`
 ```
 
 After this, importers can write:
@@ -100,7 +144,8 @@ import my_lib::prelude::M;
 import my_lib::prelude::*;       // wildcard pulls all of the above
 ```
 
-A bare `import` brings names into local scope without re-exporting them.
+A bare `import` brings names into local scope without re-exporting them. The
+bound name is visible only in the importing module.
 
 ### Re-export identity
 
@@ -149,15 +194,15 @@ root module's dependency graph but absent from the pipeline-visible API is a
 link error (except for a defaulted `override`; see below). The check starts from
 declarations in the root module and follows references transitively.
 
-An `import` statement is not itself a static access. An imported item is
-statically accessed when an identifier referring to it appears in a body, type,
-initializer, or attribute.
+An `import` statement is not itself a static access. After a bound name expands
+to its import path, the resulting reference participates in the static-access
+rules like any other reference.
 
 Pipeline-visible items keep their exposed names in the linked WGSL output. A
-root-declared item keeps its declared name. An item re-exported by `public
-import` keeps its imported name, or its `as` alias if renamed. For example, `public import
-some_pkg::pbr_fragment as my_frag;` exposes `my_frag`. Other items may be
-mangled by the linker.
+root-declared item keeps its declared name. An item re-exported by
+`public import` keeps its imported name, or its `as` alias if renamed. For
+example, `public import some_pkg::pbr_fragment as my_frag;` exposes `my_frag`.
+Other items may be mangled by the linker.
 
 Libraries cannot directly add to the pipeline-visible API. Instead, libraries
 publish `public` items for the root module to `public import`.
@@ -181,10 +226,9 @@ public import pbr_lib::passes::pbr_fragment;    // host can select this entry po
 ### Resource variables
 
 A [*resource variable*](https://www.w3.org/TR/WGSL/#resource-interface) is a
-`@group/@binding var<...>` declaration that lets host code provide values to the
-shader (uniforms, storage buffers, textures, samplers). Resource variables have
-no host-side fallback, so a resource variable statically accessed but absent
-from the pipeline-visible API is a link error.
+`@group/@binding var<...>` declaration that lets host code bind resources to the
+shader (uniforms, storage buffers, textures, samplers). A statically accessed
+resource variable must be pipeline-visible.
 
 ```wesl
 // filter_wgsl/package.wesl
@@ -210,12 +254,17 @@ A [*pipeline-overridable constant*](https://www.w3.org/TR/WGSL/#override-decls)
 is an `override` declaration the host may set at pipeline creation.
 
 A defaulted `override` that is absent from the pipeline-visible API is not
-host-settable and takes its default value. A WESL linker may emit it as an
-`override` with a mangled name and no `@id`, transform it into a `const` if its
-default is a const-expression, or inline its initializer at use sites. These
-strategies are observably equivalent to the host. A non-defaulted `override`
-absent from the pipeline-visible API is a link error if it is statically
-accessed from the root module.
+exposed through WESL's host-facing interface and uses its default value. A WESL
+linker may implement this by emitting the declaration as an `override` with a
+mangled name and no `@id`, transforming it into a `const` if its default is a
+const-expression, or inlining its initializer at use sites.
+
+The linker's output strategy does not change the validity of the WESL source: an
+expression that depends on an `override` does not satisfy a const-expression
+requirement, even if the linker emits that declaration as a `const`.
+
+A non-defaulted `override` absent from the pipeline-visible API is a link error
+if it is statically accessed from the root module.
 
 ```wesl
 // pbr_lib/lighting.wesl

@@ -98,7 +98,12 @@ An item import imports a single item. The item can be renamed with the `as` keyw
 
 An import collection imports multiple items, and allows for nested imports.
 
-A wildcard import imports all top-level declarations from a module. Submodule names and submodule contents are not imported. A wildcard must follow a module path; a bare `import *;` is an error. A wildcard may also appear as a member of an import collection, applying to the module path before the braces (see [Import bindings](#import-bindings)).
+A wildcard import imports every top-level item visible to the importer: the
+module's own visible declarations and its `public import` re-exports. Submodule
+names and submodule contents are not imported. A wildcard must follow a module
+path; a bare `import *;` is an error. A wildcard may also appear as a member of
+an import collection, applying to the module path before the braces (see
+[Import bindings](#import-bindings)).
 
 The optional `public` prefix also re-exports the imported names under the importing module's path; see
 [Visibility.md](Visibility.md).
@@ -142,7 +147,7 @@ import foo::a::b;
 import foo::*;
 ```
 
-The wildcard imports only `foo`'s own top-level declarations: the sibling
+The wildcard imports only `foo`'s own top-level items: the sibling
 branch reaching into submodule `foo::a` doesn't widen it.
 
 Each flattened import statement binds one name in the importing module: the
@@ -220,12 +225,10 @@ if they would be errors under other conditions; tools may warn about these
 too.
 
 For a wildcard import, the entire path before the `*` is a module path; the
-wildcard brings the module's top-level declarations into scope.
+wildcard brings the module's top-level items into scope.
 
 Resolution finds the declaration; whether the referencing module may then use
-it is governed by [visibility](Visibility.md). For wildcard imports,
-declarations not visible to the importer are silently skipped
-(see [Visibility.md](Visibility.md)).
+it is governed by [visibility](Visibility.md).
 
 > [!NOTE]
 > Tools can enumerate the potential resolutions an import statement
@@ -386,10 +389,12 @@ Basic linker implementations do not need to check for this. Generating broken co
 
 ## Wildcard imports
 
-Wildcard imports bring all items from another module into the importing module's
-scope.
+Wildcard imports bring every top-level item visible to the importer into the
+importing module's scope (see
+[Visibility between modules](Visibility.md#visibility-between-modules)).
 
 Users can wildcard import:
+
 - from any other module in the current package.
 - from any external library module where the library author has added a
   `@!wildcardable` annotation.
@@ -424,18 +429,19 @@ import with the `@!wildcardable;` module attribute (see [Grammar](#grammar)):
 // math.wesl  (in a library)
 @!wildcardable;
 
-fn dot2(a: vec2f, b: vec2f) -> f32 { return a.x*b.x + a.y*b.y; }
-fn cross2(a: vec2f, b: vec2f) -> f32 { return a.x*b.y - a.y*b.x; }
+public fn dot2(a: vec2f, b: vec2f) -> f32 { return a.x*b.x + a.y*b.y; }
+public fn cross2(a: vec2f, b: vec2f) -> f32 { return a.x*b.y - a.y*b.x; }
 ```
 
 ### Recommendations for `@!wildcardable` modules
 
-Because every name in a `@!wildcardable` module is a potential collision in
-importer code, library authors should curate these modules carefully.
+Because every `public` item in a `@!wildcardable` module is a potential
+collision in importer code, library authors should curate these items carefully.
 
-**Add hesitantly.** Additions to a `@!wildcardable` module are semver minor
-version bumps but can break users who have local declarations or import other
-`@!wildcardable` modules.
+**Add public items hesitantly.** Adding a `public` item to a `@!wildcardable`
+module is a semver minor change but can break users who have local declarations
+or import other `@!wildcardable` modules.
+
 - **Bundle** additions into a major release when one is upcoming.
 - **Document** additions clearly in changelogs so downstream users debugging
   unexpected name resolution can trace them.
@@ -590,7 +596,7 @@ fn light() {}              // no conflict with the package name
 ```
 
 Wildcard imports preserve this separation: they bring in only the imported
-module's top-level declarations, never module or package names.
+module's top-level items, never module or package names.
 
 Within the namespace, an import binding shadows a package with the same name:
 a first segment refers to a bound name when one is in scope, and otherwise to
@@ -599,15 +605,6 @@ shadowing.
 
 ## Directives
 Under discussion, see: <https://github.com/webgpu-tools/wesl-spec/issues/71>
-
-## Entry points and pipeline overridable constants
-These items are preserved when importing a module. Their name must be preserved.
-They will land in the final module, if they are statically accessed.
-
-* [Entry points](https://www.w3.org/TR/WGSL/#entry-points)
-* [Pipeline overridable constants](https://www.w3.org/TR/WGSL/#override-decls)
-
-For future work, see [@publish GitHub Issue](https://github.com/webgpu-tools/wesl-spec/issues/65).
 
 ## Side-effects and `const_assert`
 Generally, WGSL elements are included if they are recursively used from the root module ([statically accessed](https://www.w3.org/TR/WGSL/#statically-accessed)).
