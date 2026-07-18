@@ -31,15 +31,15 @@ items are visible (see [Wildcard imports](Imports.md#wildcard-imports)).
 > declared in the root module are
 > [pipeline-visible](#pipeline-visibility), so a plain WGSL program can serve as
 > a WESL root unchanged.
->
+> 
 > Larger applications and libraries can use `private` to keep implementation
 > details within their declaring modules. An item must be `public` to cross a
 > package boundary or to be re-exported.
 
 ### Syntax
 
-A visibility keyword may prefix any item declaration, between any attributes
-and the declaration keyword:
+A visibility keyword may prefix any item declaration, between any attributes and
+the declaration keyword:
 
 ```wesl
 fn helper() { ... }                              // package (default)
@@ -80,10 +80,10 @@ it declares no name.
 
 ### Referring to less-visible declarations
 
-Visibility governs where an item can be referenced or imported, not how
-visible its referrers must be. A `public` declaration may refer to a less-visible
-one: a `public fn` can return or accept a *package* struct, and a `public struct`
-can have a field of a less-visible type. A consumer that cannot see the type can
+Visibility governs where an item can be referenced or imported, not how visible
+its referrers must be. A `public` declaration may refer to a less-visible one: a
+`public fn` can return or accept a *package* struct, and a `public struct` can
+have a field of a less-visible type. A consumer that cannot see the type can
 still use a value of it (call the function, read its fields) but cannot name the
 type to declare a variable, import it, or construct a new value.
 
@@ -124,8 +124,8 @@ type without aliasing that type directly. For example,
 
 `public import` re-exports the imported names under the current module's path,
 in addition to bringing them into local scope. It re-exports individual items,
-not whole modules. A re-export adds another path to the same declaration, so
-one item can be reachable under several paths (see
+not whole modules. A re-export adds another path to the same declaration, so one
+item can be reachable under several paths (see
 [Re-export identity](#re-export-identity)).
 
 ```wesl
@@ -182,11 +182,12 @@ items*, can be pipeline-visible: **entry points**, **resource variables**, and
 **pipeline-overridable constants**. The pipeline-visible items form the
 host-facing interface of the linked shader.
 
-After [conditional translation](ConditionalTranslation.md), a
-pipeline-relevant item is in the pipeline-visible API when the root module
-declares it with `public` or *package* visibility, or when the root module
-`public import`s it from another module. A bare `import` in the root module
-brings an item into local scope but does not add it to the pipeline-visible API.
+After [conditional translation](ConditionalTranslation.md), a pipeline-relevant
+item is in the pipeline-visible API when the root module declares it with
+`public` or *package* visibility, or when the root module `public import`s it
+from another module. A bare `import` in the root module brings an item into
+local scope but does not add it to the pipeline-visible API.
+
 
 A resource variable or `override`
 [statically accessed](https://www.w3.org/TR/WGSL/#statically-accessed) from the
@@ -211,8 +212,8 @@ publish `public` items for the root module to `public import`.
 
 An entry point is a function with `@vertex`, `@fragment`, or `@compute`. An
 entry point must be pipeline-visible for WebGPU pipeline creation to select it.
-Non-entry helper functions are never selectable merely because they are
-`public` or *package*-visible.
+Non-entry helper functions are never selectable merely because they are `public`
+or *package*-visible.
 
 ```wesl
 // pbr_lib/passes.wesl
