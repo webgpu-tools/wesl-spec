@@ -14,7 +14,7 @@ Every WESL item has one of three visibility levels:
 | --- | --- | --- | --- |
 | `public` | Any package | Yes | Pipeline-visible |
 | *package* (default) | Same package only | No | Pipeline-visible |
-| `private` | Declaring module only | No | Not pipeline-visible |
+| `private` | Declaring module only | No | Error, except overrides |
 
 ## Visibility between modules
 
@@ -188,6 +188,11 @@ item is in the pipeline-visible API when the root module declares it with
 from another module. A bare `import` in the root module brings an item into
 local scope but does not add it to the pipeline-visible API.
 
+Marking an entry point or resource variable `private` is an error: `private`
+items are never pipeline-visible, so the host could never select or bind them.
+An `override` may be `private`: it is not host-settable, but it can still
+participate in the shader by deriving its value from another override (see
+[Pipeline-overridable constants](#pipeline-overridable-constants)).
 
 A resource variable or `override`
 [statically accessed](https://www.w3.org/TR/WGSL/#statically-accessed) from the
