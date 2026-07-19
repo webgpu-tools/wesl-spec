@@ -11,16 +11,16 @@ We also should account for **importing shader from libraries**. Ideally, users c
 Finally, we want **multiple tools** which can compile WGSL-with-imports down to raw WGSL. Using WGSL-with-imports both in Rust projects and in web projects should be possible.
 
 # Guide-level explanation
-The `import` statement extension brings items or entire modules into scope. Import statements map to files with minimal searching.
+The `import` statement extension brings item or module names into scope.
 
-```wgsl
+```wesl
 // Importing a single function using a relative path
 import super::lighting::pbr;
 
 // Importing multiple items
 import my::geom::sphere::{ draw, default_radius as foobar };
 
-// Imports a whole module. Use it with `bevy_ui::name`
+// Imports a module name. Use it with `bevy_ui::name`
 import bevy_ui;
 
 // Import all items from another module
@@ -30,18 +30,18 @@ import wgsl_test::expect::*;
 
 These can then be used anywhere in the source code.
 
-```wgsl
+```wesl
 fn main() {
     bevy_ui::quad(vec2f(0.0, 1.0), 1.0);
     let a = draw(3);
 }
 ```
 
-Both `bevy_ui` and `my` are packages in the current project. Language servers and related tools can look in a `wesl.toml` file to find the location of the packages. This lets libraries be published to package managers, and users can import them with a simple syntax.
+Both `bevy_ui` and `my` are packages in the current project, typically installed by a package manager.
 
 Recursive import definitions are also supported, which leads to shorter import statements.
 
-```wgsl
+```wesl
 import bevy_pbr::{
   forward_io::VertexOutput,
   pbr_types::{PbrInput, pbr_input_new},
@@ -49,17 +49,15 @@ import bevy_pbr::{
 };
 ```
 
-To find the relevant items, the following algorithm is used:
-
-Proceeding left to right through the path segments, consider the segments `prev` and `seg`.
-1. if `prev.wesl` exists and includes WESL elements, check if `seg` is one of those elements, e.g. `fn seg` or `namespace seg`.
-2. else if the directory `prev/` exists, check to see if the file `seg.wesl` or the directory `seg/` is in the `prev/` directory;
-3. error if a `seg` is not found.
+*Import paths* map directly to modules and their items. Each module is stored
+in a single source, typically a WESL or WGSL file: so
+`bevy_pbr::pbr_types::PbrInput` names the item `PbrInput` declared in the
+source file `pbr_types.wesl` in the `bevy_pbr` package.
 
 # Reference-level explanation
 A WESL program is composed of a tree of WESL modules.
 
-Imports must appear as the first items in a WESL file. They can import entire modules or individual "importable items" (see [GLOSSARY](GLOSSARY.md)).
+Imports must appear at the beginning of a WESL file. They can bind the name of a module or of an individual "importable item" (see [GLOSSARY](GLOSSARY.md)).
 
 ### Grammar
 
@@ -70,7 +68,7 @@ translation_unit:
 | import_statement* global_directive* global_decl* 
 
 import_statement:  
-| attribute* 'import' import_relative? (import_collection | import_path_or_item) ';'  
+| attribute* 'public'? 'import' import_relative? (import_collection | import_path_or_item) ';'
 
 import_relative:
 | 'package' '::' | 'super' '::' ('super' '::')*
@@ -85,20 +83,35 @@ import_collection:
 ```
 
 Where `translation_unit` and `ident` are defined in the WGSL grammar.
-`ident`s must not be current WGSL keywords. `ident`s also must not be 
-current WESL keywords: `as`, `import`, `package`, `super`, or `self`. 
+`ident`s must not be current WGSL keywords. `ident`s also must not be
+current WESL keywords: `as`, `import`, `package`, `public`, `self`, or `super`.
 Reserved words that are
 not current keywords are allowed, 
 but not recommended.
 Lint tools may optionally warn when reserved words are used. 
 
+Attributes may precede an import statement, notably `@if` for
+[conditional translation](ConditionalTranslation.md) and `@diagnostic` for
+[suppressible diagnostics](#suppressible-diagnostics).
+
 An item import imports a single item. The item can be renamed with the `as` keyword.
 
 An import collection imports multiple items, and allows for nested imports.
 
-A wildcard import imports all top-level declarations from a module. Submodule names and submodule contents are not imported. A wildcard must follow a module path; a bare `import *;` is an error. A wildcard may also appear as a member of an import collection, applying to the module path before the braces (see [Import resolution algorithm](#import-resolution-algorithm)).
+A wildcard import imports every top-level item visible to the importer: the
+module's own visible declarations and its `public import` re-exports. Submodule
+names and submodule contents are not imported. A wildcard must follow a module
+path; a bare `import *;` is an error. A wildcard may also appear as a member of
+an import collection, applying to the module path before the braces (see
+[Import bindings](#import-bindings)).
 
-WESL also extends WGSL's `global_directive` rule with a *module attribute*: a `@!`-prefixed attribute that carries module-level metadata. It is used by `@!wildcardable` (see [Wildcard imports](#wildcard-imports)) and reserved for future module-level metadata.
+The optional `public` prefix also re-exports the imported names under the importing module's path; see
+[Visibility.md](Visibility.md).
+After collection flattening, each `public import` must resolve to a single item.
+The forms `public import path::*` and `public import some_module;` are not yet
+assigned a meaning and are reserved.
+
+WESL also extends WGSL's `global_directive` rule with a *module attribute*: a `@!`-prefixed attribute that carries module-level metadata. It is used by `@!wildcardable` (see [Wildcard imports](#wildcard-imports)) and is otherwise reserved for future use.
 
 ```ebnf
 global_directive:
@@ -115,9 +128,9 @@ after the `@`, and is terminated with `;`; `ident_pattern_token` and
 module attributes appear after any imports and before any global declarations,
 and apply to the module they appear in.
 
-### Import resolution algorithm
+### Import bindings
 
-To resolve the import, the recursive structure is flattened out. This means turning every `import_collection` into multiple separate imports, ending with the items.
+An import statement's recursive structure is first flattened, turning every `import_collection` into multiple separate imports.
 For instance, `import a::{b, c::{d, e as f}};` would be turned into
 
 ```wesl
@@ -134,69 +147,164 @@ import foo::a::b;
 import foo::*;
 ```
 
-The wildcard imports only `foo`'s own top-level declarations: the sibling
+The wildcard imports only `foo`'s own top-level items: the sibling
 branch reaching into submodule `foo::a` doesn't widen it.
 
-Then, one iterates over each segment from left to right, and looks it up one by one.
+Each flattened import statement binds one name in the importing module: the
+last segment of its *import path*, or its `as` alias. The binding is a
+shorthand for the import path; the import path itself need not name a module or
+declaration. Each *reference*, a use of a name in code
+(such as in a function call, type, attribute argument, or other expression),
+determines a declaration path: a bound name expands to its import path, and
+any `::` segments written after it extend the path
+(see [Inline Usage](#inline-usage)).
 
-1. We start with the first segment.
-    * `super` refers to the parent module. Can be repeated to go up multiple parent modules. Exiting the root is an error.
-    * `package` refers to the top level module of the current package.
-    * `ident` must be a known package, usually found in the `wesl.toml` file. It refers to the top level module of that package.
-2. We take that as the "current module".
-3. We repeatedly look at the next segment.
-    1. Item in current module: Take that item. We must be at the last segment, otherwise it's an error.
-    2. Wildcard import: Take all items in the current module.
-    3. (Else if re-exported or inline module in current module: We continue with that module.)
-    4. Else go to `current module path/ident.wesl`
-       * File found: We take that file as the current module.
-       * File not found: We assume an empty module as the current module, and continue with that.
-       * (Re-exporting changes the path.)
-       * (Inline modules do not have a path.)
+How a bound name is used determines whether it refers to a declaration or a
+module:
 
-To get an absolute path to a module, one follows the algorithm above. In step 1, one takes the known absolute path of the `super` module, or the package.
-The absolute path of the `super` module is always known, since the first loaded WESL file must always be the root module, and children are only discovered from there.
+```wesl
+import bevy_pbr::forward_io;
 
-Once the import has been resolved, the last segment, or its `as` alias, is brought into scope.
+fn main() {
+    var out: forward_io::VertexOutput;  // forward_io used as a module:
+                                        //   the file bevy_pbr/forward_io.wesl
+    let x = forward_io();               // forward_io used as a declaration:
+                                        //   fn forward_io declared in bevy_pbr/package.wesl
+}
+```
 
+A declaration and a module may share the same name: a bare `forward_io`
+refers to the declaration, while `forward_io::VertexOutput` reaches into the
+module.
 
-### Example
+### Resolving a declaration path
 
-For example
+A *declaration path* is a fully qualified path whose final segment names a
+declared item. A declaration path always begins with `package` or the name of
+a known package; references written with `super` or bound names expand to
+this form before resolution (see [Import bindings](#import-bindings)).
+The segments before the final segment are the *module path*,
+naming the module containing the declaration. In
+`bevy_pbr::forward_io::VertexOutput`, `VertexOutput` is declared in the
+module named by `bevy_pbr::forward_io`. Each module path names exactly one
+*module source*: the stored text of a module, typically a file.
 
-```wgsl
+The first segment anchors the path:
+
+* `package` anchors the path at the current package.
+* Any other first segment must name a known package, and anchors the path at
+  that package. Tools find the known packages in the
+  [`wesl.toml`](WeslToml.md) file or through the host package manager's
+  dependencies.
+
+In a written path, a `super` prefix refers to the parent of the current
+module: each `super` removes the last segment of the current module's path,
+and it is an error to remove beyond the package root. The result is a
+declaration path anchored at `package`.
+
+A package provides a mapping from module paths to module sources; the
+semantics of the module path segments beyond the first are specific to the
+package's storage. Only the module path maps to storage; the final segment of
+a declaration path names a declaration inside the module source, never a file.
+The declaration may be declared in the module directly, or re-exported in the
+module via `public import` (see [Visibility.md](Visibility.md)).
+How a package maps module paths to sources depends on how it is stored (see
+[Filesystem Resolution](#filesystem-resolution) and
+[Non-Filesystem Resolution](#non-filesystem-resolution)).
+
+A module path may consist of just `package`, or of just a bare package name.
+Such a path refers to the optional *package module*
+(see [The package module](#the-package-module)).
+
+Referencing a declaration path that fails to resolve is an error. An import
+statement whose bound name is never referenced is allowed, even if
+referencing it would be an error; tools may warn about unused or unresolvable
+imports. Import statements and references removed by
+[conditional translation](ConditionalTranslation.md) are also allowed, even
+if they would be errors under other conditions; tools may warn about these
+too.
+
+For a wildcard import, the entire path before the `*` is a module path; the
+wildcard brings the module's top-level items into scope.
+
+Resolution finds the declaration; whether the referencing module may then use
+it is governed by [visibility](Visibility.md).
+
+> [!NOTE]
+> Tools can enumerate the potential resolutions an import statement
+> enables by analyzing the source tree paths and the declarations in each
+> module source, for example to suggest editor auto-completions.
+
+### Examples
+
+```wesl
 import bevy_pbr::forward_io::VertexOutput;
+
+@fragment
+fn fragMain(v: VertexOutput) -> @location(0) vec4f { /* ... */ }
 ```
 
-This first looks for `bevy_pbr.wesl`.
-`bevy_pbr.wesl` is found, and doesn't contain an item named `forward_io`.
-Thus, we go to `bevy_pbr/forward_io.wesl`. It contains a struct named `VertexOutput`.
+The reference `VertexOutput` in `v: VertexOutput` determines the declaration
+path `bevy_pbr::forward_io::VertexOutput`. The module path is
+`bevy_pbr::forward_io`, and the final segment refers to a declaration named
+`VertexOutput` in that module (a struct, not shown). `bevy_pbr` is a package,
+so the module source is the file `forward_io.wesl` in the `bevy_pbr`
+package's root directory, or `forward_io.wgsl` if there is no `.wesl` file.
+No other file is consulted; if both files are missing, the reference is an
+error.
 
-Another example
-
-```wgsl
+```wesl
+// lighting/pbr.wesl
 import super::shadowmapping;
+
+fn shade() {
+    let s = shadowmapping::pcf();
+}
 ```
 
-Assume that the current module lives at `shaders/lighting.wesl`. We first go to the super module at `shaders.wesl`. We then look for an item called `shadowmapping` in `shaders.wesl`.
-After not finding it, we look for a module `shadowmapping` at `shaders/shadowmapping.wesl`.
+The current module is stored at `lighting/pbr.wesl`, with module path
+`package::lighting::pbr`. `super` removes the last segment, giving
+`package::lighting`. The import binds `shadowmapping` as a shorthand for
+`package::lighting::shadowmapping`. The reference `shadowmapping::pcf()`
+determines the declaration path `package::lighting::shadowmapping::pcf`,
+referring to a function `pcf` declared in `lighting/shadowmapping.wesl` (not
+shown).
 
-## `wesl.toml`
-The [`wesl.toml`](WeslToml.md) file provides linker configuration options affecting the import resolution algorithm. It can customize:
+## The package module
 
-* The root directory,
-* Available package dependencies,
-* A file whitelist and/or blacklist.
+A package may optionally provide a top-level *package module*: a module named
+`package` at the root of the package's module path, typically from a file or
+resource named `package.wesl`.
+
+A declaration `fn foo` in the package module is addressable from outside the
+package as `my_pkg::foo`, and from within the package as `package::foo`.
+
+A `package` module is only allowed at the top level; tools should warn about a
+module named `package` anywhere else.
 
 ## Filesystem Resolution
-To resolve a module on a filesystem, one follows the algorithm above.
-The root folder, or the root module, needs to be provided to the linker. This is currently a linker-specific API, and may change once we introduce a `wesl.toml`.
+On a filesystem, a module path maps directly to a single file, following
+[Resolving a declaration path](#resolving-a-declaration-path). The first
+segment corresponds to the
+package's root directory, each intermediate segment names a subdirectory, and
+the last segment names the module's `.wesl` file (or `.wgsl` when no `.wesl`
+file exists).
 
-Linkers should fall back to `.wgsl` files when a `.wesl` file cannot be found.
+WESL tools typically find the package's root directory from
+[`wesl.toml`](WeslToml.md#root-field) or from the host package manager.
+
+### Reserved file names
 
 Due to filesystem limitations, it can happen that WESL idents are invalid file or folder names.
 Notable examples are `CON, PRN, AUX, NUL, COM1 - COM9, LPT1 - LPT9` on Windows, and Windows being case-insensitive.
 We do not take these restrictions into account, instead we just recommend that WESL programmers avoid these special names.
+
+## Non-Filesystem Resolution
+
+WESL resolution doesn't require a filesystem. It only requires a mapping from
+module paths to module sources: a bundled package can store module sources in a
+dictionary keyed by module path, and a package served over the web can map each
+module path to a URL.
 
 ## Inline Usage
 The syntax can also be used inline. To do so, we extend
@@ -242,17 +350,18 @@ type_specifier:
 | full_ident ...
 ```
 
-When resolving inline imports, we can also use modules that were imported. This means that the import resolution algorithm is extended to
-1. We start with the first segment.
-    * ...
-    * `ident` refers to an identifier that is in scope. If it is a module, we start with that. If it is not a module, it is an error. If there is none, we fall back to the packages.
+In an inline declaration path, the first segment may also be a name bound by
+an import, which expands to its import path. Otherwise, the first segment
+anchors the path as in
+[Resolving a declaration path](#resolving-a-declaration-path): `package`,
+`super`, or a known package name.
 
-Examples
+### Examples
 
 ```wesl
 import foo::bar;
 fn main() {
-    let a = bar::baz; // Uses bar from the import above
+    let a = bar::baz; // bar expands to foo::bar, from the import above
     let b = bevy::main(); // Uses the known bevy package
 }
 ```
@@ -264,13 +373,13 @@ However, the following is still illegal.
 
 ```wesl
 // foo.wesl
-import bar::b;
+import package::bar::b;
 const a = b + 1;
 ```
 
 ```wesl
 // bar.wesl
-import foo::a;
+import package::foo::a;
 const b = a + 1;
 ```
 
@@ -280,11 +389,13 @@ Basic linker implementations do not need to check for this. Generating broken co
 
 ## Wildcard imports
 
-Wildcard imports bring all items from another module into the importing module's
-scope.
+Wildcard imports bring every top-level item visible to the importer into the
+importing module's scope (see
+[Visibility between modules](Visibility.md#visibility-between-modules)).
 
 Users can wildcard import:
-- from any other module in the local package.
+
+- from any other module in the current package.
 - from any external library module where the library author has added a
   `@!wildcardable` annotation.
 
@@ -300,11 +411,11 @@ Advanced users who wish to wildcard import from external modules not marked as
 [Suppressible diagnostics](#suppressible-diagnostics)).
 
 ```wesl
-// wildcard import from a @!wildcardable external
+// wildcard import from a @!wildcardable external module
 import bevy::prelude::*;
 import wgsl_test::expect::*;
 
-// wildcard import from within the local package
+// wildcard import from within the current package
 import package::utils::*;
 import super::fun::*;
 ```
@@ -318,23 +429,24 @@ import with the `@!wildcardable;` module attribute (see [Grammar](#grammar)):
 // math.wesl  (in a library)
 @!wildcardable;
 
-fn dot2(a: vec2f, b: vec2f) -> f32 { return a.x*b.x + a.y*b.y; }
-fn cross2(a: vec2f, b: vec2f) -> f32 { return a.x*b.y - a.y*b.x; }
+public fn dot2(a: vec2f, b: vec2f) -> f32 { return a.x*b.x + a.y*b.y; }
+public fn cross2(a: vec2f, b: vec2f) -> f32 { return a.x*b.y - a.y*b.x; }
 ```
 
 ### Recommendations for `@!wildcardable` modules
 
-Because every name in a `@!wildcardable` module is a potential collision in
-importer code, library authors should curate these modules carefully.
+Because every `public` item in a `@!wildcardable` module is a potential
+collision in importer code, library authors should curate these items carefully.
 
-**Add hesitantly.** Additions to a `@!wildcardable` module are semver minor
-version bumps but can break users who have local declarations or import other
-`@!wildcardable` modules.
+**Add public items hesitantly.** Adding a `public` item to a `@!wildcardable`
+module is a semver minor change but can break users who have local declarations
+or import other `@!wildcardable` modules.
+
 - **Bundle** additions into a major release when one is upcoming.
 - **Document** additions clearly in changelogs so downstream users debugging
   unexpected name resolution can trace them.
 
-**Compose with re-exports.** See [Re-exports](#re-exports) (TBD) to collect
+**Compose with re-exports.** See [Re-exports](Visibility.md#re-exports) to collect
 items from other modules into a single `@!wildcardable` module for user
 convenience.
 
@@ -343,7 +455,7 @@ convenience.
 applications.
 
 **Don't shadow WGSL builtins.** Names like `vec3`, `clamp`, `inverseSqrt` have
-expected semantics that oughtn't be implicitly overridden with wildcards.
+expected semantics that should not be implicitly overridden with wildcards.
 Similarly, avoid experimental Naga/Dawn/Safari builtins.
 - The `builtin_shadow` diagnostic flags this (see
   [Suppressible diagnostics](#suppressible-diagnostics)).
@@ -381,16 +493,16 @@ library can't introduce conflicts into already-published code.
 
 ## Import errors and warnings
 
-WESL emits errors for name collisions and for unsupported wildcard imports,
-and warnings for shadowing that could surprise readers. Genuine
-collisions cannot be suppressed; other diagnostics are suppressible via
-`@diagnostic`.
+The table below summarizes import errors and warnings. Resolution failures
+and genuine collisions cannot be suppressed; other diagnostics are
+suppressible via `@diagnostic`.
 
 | Situation | Behavior |
 | --- | --- |
+| Reference fails to resolve (missing module source, or no such declaration) | Error |
 | Local declaration conflicts with named import | Error |
 | Named import conflicts with named import | Error |
-| Wildcard import conflicts with wildcard import (when name is referenced) | Error |
+| Wildcard imports provide different declarations for the same referenced name | Error |
 | Wildcard import from a non-`@!wildcardable` external module | Error (`unsupported_wildcard`) on the import; suppressible |
 | Cross-package wildcard import in library code | Error (`cross_package_wildcard`) on the import; suppressible |
 | Local declaration or named import shadows a wildcard-imported name | Warning (`wildcard_shadow`) on the shadowing declaration or import; suppressible |
@@ -403,17 +515,17 @@ refer to two different declarations is a dormant conflict: an error occurs
 only where the name is referenced:
 
 ```wesl
-import foo::*; // exports clashing_zap
-import bar::*; // exports a different clashing_zap
+import package::foo::*; // exports clashing_zap
+import package::bar::*; // exports a different clashing_zap
 
 fn main() {
-    let x = clashing_zap(); // error: ambiguous between foo::clashing_zap and bar::clashing_zap
+    let x = clashing_zap(); // error: ambiguous between the two clashing_zap declarations
 }
 ```
 
-The fix is to disambiguate with a named import (`import foo::clashing_zap;`,
-or `import foo::{clashing_zap, *};` to keep the wildcard) or an
-[inline module path](#inline-usage) (`foo::clashing_zap()`).
+The fix is to disambiguate with a named import (`import package::foo::clashing_zap;`,
+or `import package::foo::{clashing_zap, *};` to keep the wildcard) or an
+[inline declaration path](#inline-usage) (`package::foo::clashing_zap()`).
 
 ### Suppressible diagnostics
 
@@ -452,13 +564,12 @@ e.g. `diagnostic(off, wildcard_shadow);`.
 
 When a name could resolve to items at multiple precedence levels, the
 highest-precedence one wins. The table in
-[Import errors and warnings](#import-errors-and-warnings) describes whether
-such a resolution is silent, produces a warning, or produces an error.
+[Import errors and warnings](#import-errors-and-warnings) lists the overlaps
+that produce a warning or an error; other overlaps resolve silently.
 
 1. user declarations and named imports (non-wildcard)
 2. wildcard-imported names
-3. package names
-4. predeclared items (WGSL builtins)
+3. predeclared items (WGSL builtins)
 
 User declarations and named imports share the top precedence level: a conflict
 between them is an error, so at most one candidate can exist at that level.
@@ -468,20 +579,32 @@ builtins without breaking existing shaders: any name already bound at a higher
 level continues to resolve as before. Wildcard-imported names rank below user
 declarations and named imports for the analogous reason: additions to a
 `@!wildcardable` module won't silently change resolution at call sites that
-already have a local or named binding for the same name. Wildcard imports bring
-in only the imported module's top-level declarations, not package names.
+already have a local or named binding for the same name.
+
+### Module and package names form a separate namespace from declarations
+
+In a reference, a path segment followed by `::` names a module or a package,
+and a bare name refers to a declaration. So a declaration may share its name
+with a package without ambiguity:
+
+```wesl
+import light::foo;
+
+const bar: light::foo = 0; // `light::` unambiguously names the package
+
+fn light() {}              // no conflict with the package name
+```
+
+Wildcard imports preserve this separation: they bring in only the imported
+module's top-level items, never module or package names.
+
+Within the namespace, an import binding shadows a package with the same name:
+a first segment refers to a bound name when one is in scope, and otherwise to
+a package (see [Inline Usage](#inline-usage)). Tools may warn about the
+shadowing.
 
 ## Directives
-Under discussion, see: <https://github.com/wgsl-tooling-wg/wesl-spec/issues/71>
-
-## Entry points and pipeline overridable constants
-These items are preserved when importing a module. Their name must be preserved.
-They will land in the final module, if they are statically accessed.
-
-* [Entry points](https://www.w3.org/TR/WGSL/#entry-points)
-* [Pipeline overridable constants](https://www.w3.org/TR/WGSL/#override-decls)
-
-For future work, see [@publish GitHub Issue](https://github.com/wgsl-tooling-wg/wesl-spec/issues/65).
+Under discussion, see: <https://github.com/webgpu-tools/wesl-spec/issues/71>
 
 ## Side-effects and `const_assert`
 Generally, WGSL elements are included if they are recursively used from the root module ([statically accessed](https://www.w3.org/TR/WGSL/#statically-accessed)).
@@ -493,13 +616,13 @@ This only refers to the exact module that an element is in, and not any of the p
 
 Example:
 
-```wgsl
+```wesl
 // main.wesl:
-import foo::bar;
+import package::foo::bar;
 fn main() { bar(); }
 
 // foo.wesl:
-import zig::zag;
+import package::zig::zag;
 const_assert(1 > 0); // included in link because bar is used
 fn bar() { }
 fn miz() { zag() }
@@ -511,15 +634,15 @@ fn zag() { }
 
 Example
 
-```wgsl
-import foo::bar;
+```wesl
+import package::foo::bar;
 
-// Only the foo::bar::baz module would bring in its const assertions
+// Only the package::foo::bar::baz module would bring in its const assertions
 const a: u32 = bar::baz::hello; 
 ```
 
 `const_assert`s inside functions are treated specially! They can get eliminated during dead-code elimination, which is an observable side-effect.
-[WESL deviates from WGSL here](https://github.com/wgsl-tooling-wg/wesl-spec/issues/93).
+[WESL deviates from WGSL here](https://github.com/webgpu-tools/wesl-spec/issues/93).
 
 ## Name Mangling
 See [Name Mangling](./NameMangling.md)
@@ -528,11 +651,6 @@ See [Name Mangling](./NameMangling.md)
 Linkers may choose to do dead code elimination, but it is a non-observable implementation detail.
 
 `const_assert` statements inside of functions need special treatment, see relevant section.
-
-## Visibility
-Everything is public by default.
-
-Future proposals will introduce visibility (privacy) for items and/or modules.
 
 # Drawbacks
 Are there reasons as to why we should not do this?
@@ -583,7 +701,7 @@ The Bevy team, with a large shader codebase, had a few wishes
 To fully copy Rust's importing syntax, one needs something akin to a `mod` statement.
 The rules have carefully been architected to imitate the Rust style, while not requiring an explicit `mod` statement.
 
-In Rust, `use foo::bar;` could either map to "import an item called `bar` from `foo.rs`" or it could map to "import the module `foo/bar.rs`". Rust uses the explicit `mod` statement to disambiguate. We instead check for the presence of an item.
+In Rust, `use foo::bar;` could either map to "import an item called `bar` from `foo.rs`" or it could map to "import the module `foo/bar.rs`". Rust uses the explicit `mod` statement to disambiguate. We instead decide at each reference: a bare `bar` is the item, and `bar::baz` reaches into the module.
 
 ## Putting exports in comments
 This would have the advantage of letting some existing WGSL tools ignore the new syntax. For example, a WGSL formatter would not need to know about imports, and could just format the code as usual.
@@ -615,11 +733,11 @@ that are needed by other imports,
 automating shader composition for users.
 
 # Implementation
-Implemented in the [JavaScript/TypeScript](https://github.com/wgsl-tooling-wg/wesl-js) and [Rust](https://github.com/wgsl-tooling-wg/wesl-rs) linkers.
+Implemented in the [JavaScript/TypeScript](https://github.com/webgpu-tools/wesl-js) and [Rust](https://github.com/webgpu-tools/wesl-rs) linkers.
 
 # Test cases
 Test cases are available on
-[GitHub](https://github.com/wgsl-tooling-wg/wesl-testsuite).
+[GitHub](https://github.com/webgpu-tools/wesl-testsuite).
 
 # Future possibilities
 
