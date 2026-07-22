@@ -213,8 +213,8 @@ How a package maps module paths to sources depends on how it is stored (see
 [Non-Filesystem Resolution](#non-filesystem-resolution)).
 
 A module path may consist of just `package`, or of just a bare package name.
-Such a path refers to the optional *package module*
-(see [The package module](#the-package-module)).
+Such a path refers to the optional *package root module*
+(see [The package root module](#the-package-root-module)).
 
 Referencing a declaration path that fails to resolve is an error. An import
 statement whose bound name is never referenced is allowed, even if
@@ -270,19 +270,19 @@ determines the declaration path `package::lighting::shadowmapping::pcf`,
 referring to a function `pcf` declared in `lighting/shadowmapping.wesl` (not
 shown).
 
-## The package module
+## The package root module
 
-A package may optionally provide a top-level *package module*: a module named
-`package` at the root of the package's module path, typically from a file or
-resource named `package.wesl`.
+The *package root module* is the optional module which the bare `package`
+module path maps to.
 
-A declaration `fn foo` in the package module is addressable from outside the
+A declaration `foo` in the package root module is addressable from outside the
 package as `my_pkg::foo`, and from within the package as `package::foo`.
 
 A `package` module is only allowed at the top level; tools should warn about a
 module named `package` anywhere else.
 
 ## Filesystem Resolution
+
 On a filesystem, a module path maps directly to a single file, following
 [Resolving a declaration path](#resolving-a-declaration-path). The first
 segment corresponds to the

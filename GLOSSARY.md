@@ -40,4 +40,4 @@
 * **wesl.toml**: The optional configuration file for a package. See [WeslToml](WeslToml.md).
 * **Module Path Resolution**: Mapping between module paths and module source within a package. Choice of mapping is implementation-specific.
 * **Filesystem Resolution**: The default module path resolution. It maps module paths to file paths relative to a **Package Root Directory**. See [Filesystem Resolution][Imports.md#filesystem-resolution].
-* **Package Root Module Path**: The module path consisting only of `package`. Corresponds to `package.wesl` in the package root directory with the filesystem mapping.
+* **Package Root Module Path**: The module path consisting only of `package`. Corresponds to `package.wesl` in the package root directory with the filesystem resolution.
