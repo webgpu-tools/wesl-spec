@@ -607,7 +607,7 @@ shadowing.
 Under discussion, see: <https://github.com/webgpu-tools/wesl-spec/issues/71>
 
 ## Side-effects and `const_assert`
-Generally, WGSL elements are included if they are recursively used from the root module ([statically accessed](https://www.w3.org/TR/WGSL/#statically-accessed)).
+Generally, WGSL elements are included if they are recursively used from the entry module ([statically accessed](https://www.w3.org/TR/WGSL/#statically-accessed)).
 An import statement by itself doesn't have any side effects. It does not bring in `const_assert`s.
 
 `const_assert` statements are also included if they are in the same module or namespace as a used element.

@@ -2,7 +2,7 @@
 
 Visibility controls which other modules can reference or re-export an item. For
 entry points, resource variables, and pipeline-overridable constants, it also
-controls which items the root module exposes to the host.
+controls which items the entry module exposes to the host.
 
 Every WESL item has one of three visibility levels:
 
@@ -28,7 +28,7 @@ items are visible (see [Wildcard imports](Imports.md#wildcard-imports)).
 > Small applications generally need no visibility keywords. Unmarked items are
 > visible throughout the package, so modules can share helpers and types without
 > additional syntax. Unmarked entry points, resource variables, and overrides
-> declared in the root module are
+> declared in the entry module are
 > [pipeline-visible](#pipeline-visibility), so a plain WGSL program can serve as
 > a WESL root unchanged.
 > 
@@ -176,16 +176,16 @@ public import super::internal::helper;    // error: helper is package
 
 ## Pipeline visibility
 
-WESL translation starts from a single root module, which determines the entire
+WESL translation starts from a single entry module, which determines the entire
 pipeline-visible API. Only three kinds of items, called *pipeline-relevant
 items*, can be pipeline-visible: **entry points**, **resource variables**, and
 **pipeline-overridable constants**. The pipeline-visible items form the
 host-facing interface of the linked shader.
 
 After [conditional translation](ConditionalTranslation.md), a pipeline-relevant
-item is in the pipeline-visible API when the root module declares it with
-`public` or *package* visibility, or when the root module `public import`s it
-from another module. A bare `import` in the root module brings an item into
+item is in the pipeline-visible API when the entry module declares it with
+`public` or *package* visibility, or when the entry module `public import`s it
+from another module. A bare `import` in the entry module brings an item into
 local scope but does not add it to the pipeline-visible API.
 
 Marking an entry point or resource variable `private` is an error: `private`
@@ -196,9 +196,9 @@ participate in the shader by deriving its value from another override (see
 
 A resource variable or `override`
 [statically accessed](https://www.w3.org/TR/WGSL/#statically-accessed) from the
-root module's dependency graph but absent from the pipeline-visible API is a
+entry module's dependency graph but absent from the pipeline-visible API is a
 link error (except for a defaulted `override`; see below). The check starts from
-declarations in the root module and follows references transitively.
+declarations in the entry module and follows references transitively.
 
 An `import` statement is not itself a static access. After a bound name expands
 to its import path, the resulting reference participates in the static-access
@@ -211,7 +211,7 @@ example, `public import some_pkg::pbr_fragment as my_frag;` exposes `my_frag`.
 Other items may be mangled by the linker.
 
 Libraries cannot directly add to the pipeline-visible API. Instead, libraries
-publish `public` items for the root module to `public import`.
+publish `public` items for the entry module to `public import`.
 
 ### Entry points
 
@@ -248,7 +248,7 @@ public fn blur(@builtin(global_invocation_id) id: vec3u) {
 // app/main.wesl  (root)
 public import filter_wgsl::blur;
 // error: `filter_wgsl::data` is statically accessed but not pipeline-visible
-// fix: add `public import filter_wgsl::data;` to the root module
+// fix: add `public import filter_wgsl::data;` to the entry module
 ```
 
 The `public import` does not create a new resource variable; the original
@@ -270,7 +270,7 @@ expression that depends on an `override` does not satisfy a const-expression
 requirement, even if the linker emits that declaration as a `const`.
 
 A non-defaulted `override` absent from the pipeline-visible API is a link error
-if it is statically accessed from the root module.
+if it is statically accessed from the entry module.
 
 ```wesl
 // pbr_lib/lighting.wesl
@@ -292,7 +292,7 @@ fn fragment_main() -> @location(0) vec4f {
 
 ### Aggregating entry points
 
-When an app's entry points live in multiple source files, a small root module
+When an app's entry points live in multiple source files, a small entry module
 brings them together. The entry points must be declared `public` so the root can
 re-export them (see
 [A re-export cannot widen visibility](#a-re-export-cannot-widen-visibility)):

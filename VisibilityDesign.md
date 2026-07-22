@@ -94,7 +94,7 @@ requires an explicit visibility marker. Encapsulation discipline by default is
 handy for larger teams working on larger codebases. But private by default
 wouldn't work as well for WESL for a few reasons:
 
-* **Root module entry points would need explicit markers.** A root module's
+* **Module entry points would need explicit markers.** The entry module's
   entry points, resource variables, and overrides reach the host only when
   non-private (see [Visibility.md](Visibility.md)). With private as the default,
   every one would need a visibility marker. With package as the default,
@@ -104,7 +104,7 @@ wouldn't work as well for WESL for a few reasons:
   WESL features are also designed for possible adoption into WGSL. A private
   default would make existing, unmarked WGSL entry points and overrides
   invisible to the host. Avoiding that incompatibility would require separate
-  defaults or visibility rules for root modules. Package visibility avoids that
+  defaults or visibility rules for the entry module. Package visibility avoids that
   special case.
 
 * **WGSL compatibility would be awkward.** WGSL has no visibility keywords. With
@@ -244,13 +244,13 @@ WESL tools could not reliably find or update them when that name changes.
 
 Instead, WESL keeps each boundary explicit. A library can use a `public` item
 from a dependency with a bare `import` without passing it on, or re-export it
-with a `public import`. The root module makes a separate choice for the host: it
+with a `public import`. The entry module makes a separate choice for the host: it
 exposes its non-private pipeline-relevant items directly and selected library
 items through `public import`. This lets each application and library decide
 which dependency items cross its own API boundary.
 
-This design requires the root module to name exposed items explicitly. A small
-program may declare them in the root module; a larger program can expose items
+This design requires the entry module to name exposed items explicitly. A small
+program may declare them in the entry module; a larger program can expose items
 from other modules with `public import`.
 
 ## Future possibilities
@@ -286,10 +286,10 @@ make the original path unreachable (module visibility controls) are collected in
 
 ### Re-export widening from root
 
-A plain `.wgsl` file with an entry point cannot be aggregated into a root module
+A plain `.wgsl` file with an entry point cannot be aggregated into an entry module
 via `public import` without modification (see
 [Aggregating entry points](Visibility.md#aggregating-entry-points)). A
-relaxation would let the root module `public import` *package* items from the
+relaxation would let the entry module `public import` *package* items from the
 same package, since the root already chooses the pipeline-visible API. The cost
 is loss of orthogonality: what `public import` accepts would depend on whether
 the importer is the root. Root status belongs to a link invocation, not to the
