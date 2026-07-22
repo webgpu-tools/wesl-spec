@@ -3,9 +3,9 @@
 ## Overview
 > *This section is non-normative*
 
-Conditional translation is a mechanism to modify the output source code based on parameters passed to the *WESL translator*.
+Conditional translation is a mechanism to modify the output source code based on parameters passed to the *WESL linker*..
 This specification extends the [*attribute* syntax](https://www.w3.org/TR/WGSL/#attributes) with a new `@if` attribute.
-This attribute indicates that the syntax node it decorates can be removed by the *WESL translator* based on feature flags.
+This attribute indicates that the syntax node it decorates can be removed by the *WESL linker* based on feature flags.
 
 > *This implementation is similar to the `#[cfg(feature = "")]` syntax in Rust.*
 
@@ -49,7 +49,7 @@ const feature1 = 10;
 ```
 
 ## Definitions
-* **Translate-time expression**: A *translate-time expression* is evaluated by the *WESL translator* and eliminated after translation.
+* **Translate-time expression**: A *translate-time expression* is evaluated by the *WESL linker* and eliminated after translation.
   Its grammar is a subset of normal WGSL [expressions](https://www.w3.org/TR/WGSL/#expressions). It must be one of:
   * a *translate-time feature*,
   * a [logical expression](https://www.w3.org/TR/WGSL/#logical-expr): logical not (`!`), short-circuiting AND (`&&`), short-circuiting OR (`||`),
@@ -144,7 +144,7 @@ fn f() { ... }
 
 
 ## Execution of the conditional translation phase
-1. The *WESL translator* is invoked with the list of features to *enable* or *disable*.
+1. The *WESL linker* is invoked with the list of features to *enable* or *disable*.
 
 2. The source file is parsed.
 
@@ -159,13 +159,13 @@ fn f() { ... }
 5. The updated source code is passed to the next translation phase. (e.g. import resolution)
 
 ### Incremental translation
-In case some features can only be resolved at runtime, a *WESL translator* can *optionally* support feature specialization in multiple passes:
+In case some features can only be resolved at runtime, a *WESL linker* can *optionally* support feature specialization in multiple passes:
 
-* In the initial passes, the *WESL translator* is invoked with some of the feature flags. It replaces their occurrences in *translate-time attributes* with either `true` or `false`.
+* In the initial passes, the *WESL linker* is invoked with some of the feature flags. It replaces their occurrences in *translate-time attributes* with either `true` or `false`.
   These passes return a partially-translated WESL code.
 * After the final pass, the resulting code must be valid WGSL. It is a *link-time error* if any used *translate-time feature* was not provided to the linker.
 
-If the *WESL translator* does not support incremental translation, it is a *link-time error* if any used *translate-time feature* was not provided to the linker.
+If the *WESL linker* does not support incremental translation, it is a *link-time error* if any used *translate-time feature* was not provided to the linker.
 
 > *It is not an error to provide unused feature flags to the linker. However, an implementation may choose to display a warning in that case.*
 
