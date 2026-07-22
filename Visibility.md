@@ -292,9 +292,9 @@ fn fragment_main() -> @location(0) vec4f {
 
 ### Aggregating entry points
 
-When an app's entry points live in multiple source files, a small entry module
-brings them together. The entry points must be declared `public` so the root can
-re-export them (see
+It is common to declare an app's entry points in many source files. In this case,
+one can re-export them from a small entry module alongside other pipeline-relevant items.
+The entry points must be declared `public` so the root can re-export them (see
 [A re-export cannot widen visibility](#a-re-export-cannot-widen-visibility)):
 
 ```wesl
