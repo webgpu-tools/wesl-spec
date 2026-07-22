@@ -1,57 +1,89 @@
 # Packaging
-(TBD)
 
-The section will discuss packaging WESL in reusable crates or npm packages.
+WESL enables shader packages for reusing shader code by other packages or applications. Shader packages are typically published to repositories such as [npm] or [crates.io].
 
-See also [Visibility](Visibility.md).
+In development, packages are typically loaded from repositories by ecosystem package managers like npm or cargo. [wesl-js] will fetch packages from [npm], while [wesl-rs] will fetch them from [crates.io].
+The package dependencies of a shader project are either provided manually using linker-specific settings, discovered automatically by the linker, or explicitly listed in the `dependencies` section of [`wesl.toml`].
 
-* What goes in `package.json`?
-  * at runtime in the browser, the linker needs
-    WESL strings and relative paths for every needed WESL file, from every every package.
-    * (this so the linker can resolve imports)
-  * something needs to tell javascript bundlers to include needed WESL files in the bundle:
-    * we could ask package publishers to produce a javascript file containing a map of relative paths and WESL strings
-    * perhaps better would be to have a vite/rollup plugin trace from the source WESL to the needed package WESL files (using the linker as a library to parse WESL)
-      * this would avoid requiring publishers to manually publish string maps of WESL text,
-        instead publishers would just publish files in dist.
-        * the consumer plugin tool would bundle files into strings.
-      * corner case issue: runtime conditional compilation could potentially change the imported
-        files required. Perhaps we'll need some workaround markers in this rare case, so tree shaking can still work.
-    * note that the WESL-linker already has this problem of bundling local WGSL files
-      and asks users to 'self package' WGSL using import.meta.glob
-      (which bundles files into [file path, WGSL string] pairs)
-  * what other metadata should be available to the linker?
-    * name of package.
-    * host visible bits from WGSL? e.g. entry points, runtime variables, overrides, binding groups, uniforms?
-      An IDE tool could use that data to typecheck/autocomplete host calls.
-      Things like entry points are computable from the WGSL,
-      but it's a lot to ask of a language server to parse through all the WGSL in advance to find them.
-      Probably better to put it into the metadata if we need it.
-      * these are parts of the API of the package as a whole and can reduce bugs by making them visible
-  * how do we handle packages with multiple entry points e.g. stoneberry/reduce stoneberry/prefixSum.
-* What goes in `cargo.toml`?
+## Creating and publishing shader packages
 
-## `wesl.toml` file
-The `wesl.toml` file is a configuration file that tells the language server where to find the packages. It is similar to a `Cargo.toml` file in that regard.
+Any [`wesl.toml`] file declares a new shader package, which can be published using the linker's CLI.
+Publishing packages is implementation-specific, linkers ([wesl-js] or [wesl-rs]) provide documentation on how to publish to their respective package repositories.
 
-```toml
-name = "my"
-edition = "2024"
+### Accessing packages from shader code
 
-[dependencies]
-bevy_ui = { cargo = "bevy_ui" }
-shader_wiz = { path = "./node_modules/shader_wiz/src/main.wgsl" }
+Packages' contents are reachable from user code via module paths prefixed with the package name, e.g. `package_name::declaration_name`. This mechanism is detailed in the [import resolution algorithm](Imports.md#resolving-a-declaration-path).
+The package name in shader code is the same as the name published on [npm] or [crates.io], with two exceptions:
+
+1. The name is sanitized to remove certain common symbols that are invalid in WGSL identifiers (see following section).
+2. The name can be overridden in the dependencies list in [`wesl.toml`], e.g. `wgsl_name = { package = "@published/name" }`.
+
+If after these operations, the shader name is still not a valid WGSL identifier, the package will not be reachable from user code.
+
+### Package name sanitization
+
+[wesl-js] performs the following sanitization:
+* `@` (at sign) is removed.
+* `-` (minus sign) is replaced with `_` (underscore).
+* `/` (forward slash) is replaced with `__` (double underscore).
+
+_Example: a package published on npm with the name `@mycompany/mypackage_wgsl` can be imported with the prefix `mycompany__mypackage_wgsl`._
+
+[wesl-rs] only replaces `-` (minus sign) with `_` (underscore). It does not allow `@` or `/`.
+
+_Example: a package published on npm with the name `my-package-wgsl` can be imported with the prefix `my_package_wgsl`._
+
+### Package naming guidelines
+
+A package can be published under any name matching the requirements of the section above. We however recommend following these guidelines, so the package can be easily found and consumed by end users.
+
+* Use a name that is also a valid WGSL identifier. Otherwise, end-users will have to rename it in [`wesl.toml`].
+* Add the `_wgsl` suffix to the name: `mypackage_wgsl`.
+* Use snake_case (underscores to separate words): `my_great_package_wgsl`.
+* If your package is part of a larger project, or produced by a company, you can prefix it with that name: `mycompany_mypackage_wgsl`.
+  * For [wesl-js] specifically, you can use the common naming convention `@mycompany/mypackage_wgsl`.[^1]
+* Look for packages with the same name in both [npm] and [crates.io].
+  * It is courtesy to leave the name free for the original author if they wish to publish to the other registry.
+  * It also avoids confusion for end-users who may think it is the same package.
+ 
+## Semver-compatibility and dependency unification
+
+[wesl-js] and [wesl-rs] both delegate package installation and version management to npm or Cargo. 
+These package managers typically apply  _dependency version unification_: if two packages in the dependency tree are [semver-compatible](https://semver.org/), the package manager installs only one version of the package, often the latest semver-compatible version available. 
+For WESL, dependency unification can have observable side-effects; for instance, module-scope declarations may or may not be duplicated.
+
+### Example
+
+```wgsl
+// package random
+// --------------
+var<private> prng_state: f32 = 0;
+
+// return a random float in [0, 1]. Do not actually use this function, it is awful.
+fn rand() -> f32 {
+    prng_state = fract(sin(x)*12345.6789);
+    return prng_state;
+}
 ```
 
-We specify how to resolve the paths of packages instead of scanning folders for `*.wgsl` files.
-In the Javascript world, it is common to have a `node_modules` folder with 10k files, which is not practical for a language server to scan.
+In this example, the `random::rand()` function has internal state represented by `prng_state`.
+If two packages depend on semver-compatible versions of `random`, there will be a single copy of the `rand()` function and its internal state. Calls to `rand()` from both packages refer to the same declaration.
+If however they depend on non-semver-compatible versions, there will be two copies of the `rand()` function and its internal state. Calls to `rand()` from both packages refer to distinct declarations.
 
-We are planning on taking advantage of existing package managers, such as `cargo` for Rust, and `npm` for Javascript. This makes it easier for users to consume shaders, and makes sense for ecosystem-specific tools.
+## Package visibility
 
-### Unresolved questions
-* Is .toml the best file format for the `wesl.toml`? Some alternatives would be JSON/JSON5 and StrictYAML.
-* do we need to put paths for every package's WGSL in `wesl.toml`?
-  * Fine to get started that way if need be, but its a maintenance burden every user..
-  * Better if we could get the language servers to find the WGSL in packages in node_modules.
-* Do we need to list the WGSL package names in `wesl.toml`?
-  They'll already be listed in as `cargo.toml` / `package.json`..
+A package can only import from packages that are its direct dependencies, using an import statement or an inline import (see [imports]). 
+It cannot import from indirect dependencies (i.e., dependencies of dependencies).
+Declarations in indirect dependencies can be indirectly used by the package, for instance if a direct dependency provides a function which calls a function in one of its dependencies.
+
+
+[npm]: https://www.npmjs.com/
+[crates.io]: https://crates.io/
+[`wesl.toml`]: WeslToml.md
+[imports]: Imports.md
+[visibility]: Visibility.md
+[wesl-js]: https://github.com/wgsl-tooling-wg/wesl-js
+[wesl-rs]: https://github.com/wgsl-tooling-wg/wesl-rs
+
+[^1]: The name will be sanitized in shader code, see [#package-name-sanitization].
+
