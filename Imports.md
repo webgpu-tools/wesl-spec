@@ -213,8 +213,8 @@ How a package maps module paths to sources depends on how it is stored (see
 [Non-Filesystem Resolution](#non-filesystem-resolution)).
 
 A module path may consist of just `package`, or of just a bare package name.
-Such a path refers to the optional *package module*
-(see [The package module](#the-package-module)).
+Such a path refers to the optional *package root module*
+(see [The package root module](#the-package-root-module)).
 
 Referencing a declaration path that fails to resolve is an error. An import
 statement whose bound name is never referenced is allowed, even if
@@ -270,28 +270,67 @@ determines the declaration path `package::lighting::shadowmapping::pcf`,
 referring to a function `pcf` declared in `lighting/shadowmapping.wesl` (not
 shown).
 
-## The package module
+## The package root module
 
-A package may optionally provide a top-level *package module*: a module named
-`package` at the root of the package's module path, typically from a file or
-resource named `package.wesl`.
+The *package root module* is the optional module that the bare `package`
+module path maps to. In filesystem resolution, it corresponds to a special file
+named `package.json` in the package root directory.
 
-A declaration `fn foo` in the package module is addressable from outside the
+A declaration `foo` in the package root module is addressable from outside the
 package as `my_pkg::foo`, and from within the package as `package::foo`.
 
 A `package` module is only allowed at the top level; tools should warn about a
 module named `package` anywhere else.
 
 ## Filesystem Resolution
-On a filesystem, a module path maps directly to a single file, following
-[Resolving a declaration path](#resolving-a-declaration-path). The first
-segment corresponds to the
-package's root directory, each intermediate segment names a subdirectory, and
-the last segment names the module's `.wesl` file (or `.wgsl` when no `.wesl`
-file exists).
 
-WESL tools typically find the package's root directory from
-[`wesl.toml`](WeslToml.md#root-field) or from the host package manager.
+On a filesystem, a module path maps directly to a single file, following
+[Resolving a declaration path](#resolving-a-declaration-path).
+
+The resolution starts with a filesystem root directory, typically in a
+[`wesl.toml`](WeslToml.md#root-field) file, user-provided through the linker's API,
+or defaulted by the linker.
+
+> [!NOTE]
+> Linkers may apply heuristics to find the default filesystem root directory, such as
+> looking for a `shaders` directory at the project root, or using the parent directory
+> of the main module.
+
+The package root module path is mapped to a file named `package.wesl` or `package.wgsl`
+in the package root directory.
+
+Other module paths are mapped as follows: each intermediate segment after `package`
+ name a subdirectory from the package root directory, and the last segment names
+a `.wesl` or `.wgsl` file within the subdirectory.
+
+The `.wesl` extension takes priority over `.wgsl` in case both files are present.
+The extension has no other impact in the translation process.
+A resolution fails if neither `.wesl` nor `.wgsl` file exists for a given module path.
+
+**Example**:
+
+Suppose the following project structure, and the package root directory set to `shaders/`:
+
+```
+src/
+shaders/
+  util/
+    noise.wesl
+  package.wesl
+  main.wesl
+  util.wgsl
+  data.txt
+package.json
+```
+
+The filesystem resolution maps:
+
+* `package` to `shaders/package.wesl`
+* `package::main` to `shaders/main.wesl`
+* `package::util` to `shaders/package/util.wgsl`
+* `package::util::noise` to `shaders/package/util/noise.wesl`
+* `package::data` is an invalid module path, because there is no file named
+  `data.wesl` or `data.wgsl` in `shaders/`.
 
 ### Reserved file names
 
@@ -607,7 +646,7 @@ shadowing.
 Under discussion, see: <https://github.com/webgpu-tools/wesl-spec/issues/71>
 
 ## Side-effects and `const_assert`
-Generally, WGSL elements are included if they are recursively used from the root module ([statically accessed](https://www.w3.org/TR/WGSL/#statically-accessed)).
+Generally, WGSL elements are included if they are recursively used from the main module ([statically accessed](https://www.w3.org/TR/WGSL/#statically-accessed)).
 An import statement by itself doesn't have any side effects. It does not bring in `const_assert`s.
 
 `const_assert` statements are also included if they are in the same module or namespace as a used element.

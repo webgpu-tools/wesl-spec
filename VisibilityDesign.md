@@ -23,7 +23,7 @@ normative spec lives in [Visibility.md](Visibility.md).
   * [`package` keyword on declarations](#package-keyword-on-declarations)
   * [Module re-export](#module-re-export)
   * [Canonical prelude path](#canonical-prelude-path)
-  * [Re-export widening from root](#re-export-widening-from-root)
+  * [Re-export widening from main](#re-export-widening-from-main)
   * [Wildcard re-export](#wildcard-re-export)
   * [Member visibility](#member-visibility)
   * [Diagnosing less-visible types in public
@@ -94,17 +94,17 @@ requires an explicit visibility marker. Encapsulation discipline by default is
 handy for larger teams working on larger codebases. But private by default
 wouldn't work as well for WESL for a few reasons:
 
-* **Root module entry points would need explicit markers.** A root module's
+* **Module entry points would need explicit markers.** The main module's
   entry points, resource variables, and overrides reach the host only when
   non-private (see [Visibility.md](Visibility.md)). With private as the default,
   every one would need a visibility marker. With package as the default,
-  `@fragment fn frag_main(...)` at root is pipeline-visible with no extra
+  `@fragment fn frag_main(...)` in the main module is pipeline-visible with no extra
   keywords or annotations.
 
   WESL features are also designed for possible adoption into WGSL. A private
   default would make existing, unmarked WGSL entry points and overrides
   invisible to the host. Avoiding that incompatibility would require separate
-  defaults or visibility rules for root modules. Package visibility avoids that
+  defaults or visibility rules for the main module. Package visibility avoids that
   special case.
 
 * **WGSL compatibility would be awkward.** WGSL has no visibility keywords. With
@@ -244,13 +244,13 @@ WESL tools could not reliably find or update them when that name changes.
 
 Instead, WESL keeps each boundary explicit. A library can use a `public` item
 from a dependency with a bare `import` without passing it on, or re-export it
-with a `public import`. The root module makes a separate choice for the host: it
+with a `public import`. The main module makes a separate choice for the host: it
 exposes its non-private pipeline-relevant items directly and selected library
 items through `public import`. This lets each application and library decide
 which dependency items cross its own API boundary.
 
-This design requires the root module to name exposed items explicitly. A small
-program may declare them in the root module; a larger program can expose items
+This design requires the main module to name exposed items explicitly. A small
+program may declare them in the main module; a larger program can expose items
 from other modules with `public import`.
 
 ## Future possibilities
@@ -284,16 +284,16 @@ the original path) without any change to name resolution. Stronger designs that
 make the original path unreachable (module visibility controls) are collected in
 [#202](https://github.com/webgpu-tools/wesl-spec/issues/202).
 
-### Re-export widening from root
+### Re-export widening from main
 
-A plain `.wgsl` file with an entry point cannot be aggregated into a root module
+A plain `.wgsl` file with an entry point cannot be aggregated into a main module
 via `public import` without modification (see
 [Aggregating entry points](Visibility.md#aggregating-entry-points)). A
-relaxation would let the root module `public import` *package* items from the
-same package, since the root already chooses the pipeline-visible API. The cost
+relaxation would let the main module `public import` *package* items from the
+same package, since the main module already chooses the pipeline-visible API. The cost
 is loss of orthogonality: what `public import` accepts would depend on whether
-the importer is the root. Root status belongs to a link invocation, not to the
-module itself; the same module can be a root in one link and an ordinary module
+the importer is the main module. Determination of the main module belongs to a link invocation, not to the
+module itself; the same module can be main in one link and an ordinary module
 in another. Source-only tools such as the language server could not check that
 rule without knowing how the module will be linked.
 

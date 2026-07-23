@@ -68,7 +68,7 @@ For dual publishing, the expectation is that one would have a primary package ma
 
 ### `root` field
 
-Specifies the root folder for the `package::` syntax.
+Specifies the package root directory for the [filesystem resolution](Imports.md#filesystem-resolution).
 IDEs watch this directory for changes.
 
 - Optional
