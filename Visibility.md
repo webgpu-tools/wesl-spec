@@ -2,7 +2,7 @@
 
 Visibility controls which other modules can reference or re-export an item. For
 entry points, resource variables, and pipeline-overridable constants, it also
-controls which items the entry module exposes to the host.
+controls which items the main module exposes to the host.
 
 Every WESL item has one of three visibility levels:
 
@@ -10,7 +10,7 @@ Every WESL item has one of three visibility levels:
 * *package* (the default): visible from any module in the same package.
 * `private`: visible only within the declaring module.
 
-| Visibility | Cross-module access | [Re-exportable](#a-re-export-cannot-widen-visibility) | Root-declared [pipeline-relevant item](#pipeline-visibility) |
+| Visibility | Cross-module access | [Re-exportable](#a-re-export-cannot-widen-visibility) | Main-declared [pipeline-relevant item](#pipeline-visibility) |
 | --- | --- | --- | --- |
 | `public` | Any package | Yes | Pipeline-visible |
 | *package* (default) | Same package only | No | Pipeline-visible |
@@ -28,9 +28,9 @@ items are visible (see [Wildcard imports](Imports.md#wildcard-imports)).
 > Small applications generally need no visibility keywords. Unmarked items are
 > visible throughout the package, so modules can share helpers and types without
 > additional syntax. Unmarked entry points, resource variables, and overrides
-> declared in the entry module are
+> declared in the main module are
 > [pipeline-visible](#pipeline-visibility), so a plain WGSL program can serve as
-> a WESL root unchanged.
+> a WESL main module unchanged.
 > 
 > Larger applications and libraries can use `private` to keep implementation
 > details within their declaring modules. An item must be `public` to cross a
@@ -96,7 +96,7 @@ struct Mesh { vertices: u32 }            // package-visible (the default)
 public fn make_mesh() -> Mesh { ... }    // returns a package-visible type
 // public alias Exposed = Mesh;          // error: alias more visible than Mesh
 
-// app/main.wesl  (root)
+// app/main.wesl  (main module)
 import mesh_lib::geometry::make_mesh;
 // import mesh_lib::geometry::Mesh;      // error: Mesh is package-visible only
 
@@ -176,16 +176,16 @@ public import super::internal::helper;    // error: helper is package
 
 ## Pipeline visibility
 
-WESL translation starts from a single entry module, which determines the entire
+WESL translation starts from a single main module, which determines the entire
 pipeline-visible API. Only three kinds of items, called *pipeline-relevant
 items*, can be pipeline-visible: **entry points**, **resource variables**, and
 **pipeline-overridable constants**. The pipeline-visible items form the
 host-facing interface of the linked shader.
 
 After [conditional translation](ConditionalTranslation.md), a pipeline-relevant
-item is in the pipeline-visible API when the entry module declares it with
-`public` or *package* visibility, or when the entry module `public import`s it
-from another module. A bare `import` in the entry module brings an item into
+item is in the pipeline-visible API when the main module declares it with
+`public` or *package* visibility, or when the main module `public import`s it
+from another module. A bare `import` in the main module brings an item into
 local scope but does not add it to the pipeline-visible API.
 
 Marking an entry point or resource variable `private` is an error: `private`
@@ -196,22 +196,22 @@ participate in the shader by deriving its value from another override (see
 
 A resource variable or `override`
 [statically accessed](https://www.w3.org/TR/WGSL/#statically-accessed) from the
-entry module's dependency graph but absent from the pipeline-visible API is a
+main module's dependency graph but absent from the pipeline-visible API is a
 link error (except for a defaulted `override`; see below). The check starts from
-declarations in the entry module and follows references transitively.
+declarations in the main module and follows references transitively.
 
 An `import` statement is not itself a static access. After a bound name expands
 to its import path, the resulting reference participates in the static-access
 rules like any other reference.
 
-Pipeline-visible items keep their exposed names in the linked WGSL output. A
-root-declared item keeps its declared name. An item re-exported by
+Pipeline-visible items keep their exposed names in the linked WGSL output.
+A declaration in the main module keeps its name. An item re-exported by
 `public import` keeps its imported name, or its `as` alias if renamed. For
 example, `public import some_pkg::pbr_fragment as my_frag;` exposes `my_frag`.
 Other items may be mangled by the linker.
 
 Libraries cannot directly add to the pipeline-visible API. Instead, libraries
-publish `public` items for the entry module to `public import`.
+publish `public` items for the main module to `public import`.
 
 ### Entry points
 
@@ -225,7 +225,7 @@ or *package*-visible.
 @fragment
 public fn pbr_fragment() -> @location(0) vec4f { ... }
 
-// app/main.wesl  (root)
+// app/main.wesl  (main module)
 public import pbr_lib::passes::pbr_fragment;    // host can select this entry point
 ```
 
@@ -245,10 +245,10 @@ public fn blur(@builtin(global_invocation_id) id: vec3u) {
   data[id.x] = ...;
 }
 
-// app/main.wesl  (root)
+// app/main.wesl  (main module)
 public import filter_wgsl::blur;
 // error: `filter_wgsl::data` is statically accessed but not pipeline-visible
-// fix: add `public import filter_wgsl::data;` to the entry module
+// fix: add `public import filter_wgsl::data;` to the main module
 ```
 
 The `public import` does not create a new resource variable; the original
@@ -270,7 +270,7 @@ expression that depends on an `override` does not satisfy a const-expression
 requirement, even if the linker emits that declaration as a `const`.
 
 A non-defaulted `override` absent from the pipeline-visible API is a link error
-if it is statically accessed from the entry module.
+if it is statically accessed from the main module.
 
 ```wesl
 // pbr_lib/lighting.wesl
@@ -278,7 +278,7 @@ public override sun_intensity: f32 = 1.0;       // has default
 public override max_lights: u32;                // no default
 public fn apply_lighting() -> vec4f { ... }     // uses both overrides
 
-// app/main.wesl  (root)
+// app/main.wesl  (main module)
 import pbr_lib::lighting::apply_lighting;
 public import pbr_lib::lighting::max_lights;    // host must set
 
@@ -293,8 +293,8 @@ fn fragment_main() -> @location(0) vec4f {
 ### Aggregating entry points
 
 It is common to declare an app's entry points in many source files. In this case,
-one can re-export them from a small entry module alongside other pipeline-relevant items.
-The entry points must be declared `public` so the root can re-export them (see
+one can re-export them from a small main module alongside other pipeline-relevant items.
+The entry points must be declared `public` so the main module can re-export them (see
 [A re-export cannot widen visibility](#a-re-export-cannot-widen-visibility)):
 
 ```wesl
@@ -304,7 +304,7 @@ The entry points must be declared `public` so the root can re-export them (see
 // app/fragment.wesl
 @fragment public fn fragment_main(...) -> @location(0) vec4f { ... }
 
-// app/main.wesl  (root)
+// app/main.wesl  (main module)
 public import super::vertex::vertex_main;
 public import super::fragment::fragment_main;
 ```

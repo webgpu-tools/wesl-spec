@@ -1,4 +1,4 @@
-# Glossary of WGSL Importing terms
+# WESL Terms
 
 ## General
 
@@ -17,17 +17,17 @@
   * (Maybe `const_assert`?)
 * **Visibility**: An item's visibility defines which modules can reference or re-export it.
   Visibility has three levels: `public`, *package* (the default), or `private`.
-  For a pipeline-relevant item, visibility also controls whether the entry module exposes it to the host. see [Visibility](Visibility.md).
+  For a pipeline-relevant item, visibility also controls whether the main module exposes it to the host. see [Visibility](Visibility.md).
 
 ## Modules
 
 * **Module**: A unit of WESL or WGSL code with its own top-level scope, stored in a single module source.
 * **Module Source**: The stored text of a module, typically in a WESL or WGSL file.
-* **Entry Module**: The WESL module from which translation starts. Its public declarations form the **shader-host interface** and are not mangled. A single application can have many entry modules.
+* **Main module**: The WESL module from which translation starts. It defines the **pipeline-visible API**, i.e. the set of items which are visible to the host (CPU-side), and therefore are not mangled. A single application can have many main modules.
 * **Module Path**: A `::`-separated path naming a module; equivalently, a declaration path minus its final segment.
 * **Declaration Path**: A `::`-separated path whose final segment names a declared item.
 * **Canonical Path**: A fully qualified module/ declaration path (which does not contain any `super::`). There is exactly one canonical path per module or declaration within a package.
-* **Importable item**: A module declaration or re-export that can be imported by other modules.
+* **Importable item**: Items that can be imported by other modules.
   * Structs
   * Functions
   * Type aliases
@@ -38,6 +38,6 @@
 
 * **Package**: A publishable body of WESL code containing multiple files. Akin to a JavaScript npm package or a Rust crate.
 * **wesl.toml**: The optional configuration file for a package. See [WeslToml](WeslToml.md).
-* **Module Path Resolution**: Mapping between module paths and module source within a package. Choice of mapping is implementation-specific.
-* **Filesystem Resolution**: The default module path resolution. It maps module paths to file paths relative to a **Package Root Directory**. See [Filesystem Resolution][Imports.md#filesystem-resolution].
-* **Package Root Module Path**: The module path consisting only of `package`. Corresponds to `package.wesl` in the package root directory with the filesystem resolution.
+* **Module Path Resolution**: Mapping between module paths and module source within a package. Choice of mapping is specific to the storage type (filesystem, in-memory source, URL-based, etc.).
+* **Filesystem Resolution**: The standard path resolution for a filesystem storage. It maps module paths to file paths relative to a **Package Root Directory**. See [Filesystem Resolution](Imports.md#filesystem-resolution).
+* **Package Root Module Path**: The module path consisting only of `package`. With the filesystem resolution, it is mapped to an optional `package.wesl` file in the package root directory.

@@ -3,7 +3,7 @@
 ## Overview
 > *This section is non-normative*
 
-Conditional translation is a mechanism to modify the output source code based on parameters passed to the *WESL linker*..
+Conditional translation is a mechanism to modify the output source code based on parameters passed to the *WESL linker*.
 This specification extends the [*attribute* syntax](https://www.w3.org/TR/WGSL/#attributes) with a new `@if` attribute.
 This attribute indicates that the syntax node it decorates can be removed by the *WESL linker* based on feature flags.
 
