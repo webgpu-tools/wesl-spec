@@ -90,3 +90,84 @@ benefits while limiting the risk:
   [standard diagnostic controls](Imports.md#suppressible-diagnostics). The
   default tunes the path of least resistance, but doesn't block users who
   intentionally accept the risk.
+
+## Alternatives
+
+## TypeScript-like imports
+The Bevy team, with a large shader codebase, had a few wishes
+
+* A short syntax
+* Inline usage
+
+## Rust-like imports
+To fully copy Rust's importing syntax, one needs something akin to a `mod` statement.
+The rules have carefully been architected to imitate the Rust style, while not requiring an explicit `mod` statement.
+
+In Rust, `use foo::bar;` could either map to "import an item called `bar` from `foo.rs`" or it could map to "import the module `foo/bar.rs`". Rust uses the explicit `mod` statement to disambiguate. We instead decide at each reference: a bare `bar` is the item, and `bar::baz` reaches into the module.
+
+### Composing shader code as strings at runtime
+One alternative is to compose shader code at runtime
+by simply joining together strings with WGSL code, perhaps
+with some string templating for flexibility.
+This has the major downside of not being statically analyzable.
+The IDE cannot provide autocompletion,
+and a language server cannot check for errors.
+
+A linker that understands imports also typically
+composes shader strings, and can link at runtime.
+But a linker uses its more sophisticated understanding of WGSL
+to drive composition.
+For example, a linker can identify imports
+that are needed by other imports,
+automating shader composition for users.
+
+### Preprocessor `#include <lighting.wgsl>`
+One alternative, which is common in the GLSL and C worlds, is an including mechanism which simply copy-pastes existing code. A major upside is that this is very simple to implement.
+
+One drawback is that importing the same shader multiple times, which can also happen indirectly, does not work without other preprocessor features.
+
+```c
+// A.wgsl
+#include <lighting.wgsl>
+#include <math.wgsl>
+```
+
+```c
+// lighting.wgsl
+#include <math.wgsl>
+```
+
+would not work, since anything defined in `math.wgsl` would be imported twice. In C-land, this is solved by using *include guards*.
+
+Another drawback is that using the same name twice is impossible. In C-land, this leads to pseudo-namespaces, where major libraries will prefix all of their functions with a few symbols. An example of this is the Vulkan API `vkBeginCommandBuffer` or `vkCmdDraw`.
+
+A future drawback is that "privacy" or "visibility" becomes very difficult to implement. Everything that is imported is automatically public and easily accessible.
+In C-land, the workaround is using header files. In other languages, such as Python, the convention ends up being "anything prefixed with an underscore `_` is private".
+
+### Putting exports in comments
+This would have the advantage of letting some existing WGSL tools ignore the new syntax. For example, a WGSL formatter would not need to know about imports, and could just format the code as usual.
+
+### Using an alternative shader language
+There are multiple higher level shading languages, such as [slang](https://github.com/shader-slang/slang) or [Rust-GPU](https://github.com/EmbarkStudios/rust-gpu) which support imports. They also support more features that WGSL currently does not offer. For complex projects, this can very much pay off.
+
+The downside is using additional tooling, and dealing with an additional translation layer.
+An additional translation layer could lock shader authors out of certain WGSL features.
+
+Also, higher level GPU languages are typically processed at build time,
+which precludes using language features to adapt to runtime conditions
+like GPU characteristics or user settings.
+
+
+# Future possibilities
+
+## Namespaces
+We hope that modules will be added to WGSL itself. Then, the importing mechanism can be extended to fully support modules, for example by treating each file as being its own module.
+
+## Source maps
+We encourage tooling authors to also implement source maps when implementing imports. This aids
+
+* Error Reporting. When Naga or Tint report an error in the generated WGSL code, we want to map the error location back to the WESL code.
+* Debugging. Eventually we hope to have a full toolchain of WESL to WGSL to SPIR-V, with source maps at each step. In the end, it should be possible for RenderDoc to show the original WESL code.
+
+## Scoped imports
+Allow imports that are only active within one function?
