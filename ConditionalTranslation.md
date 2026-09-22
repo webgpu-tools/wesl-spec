@@ -62,7 +62,7 @@ const feature1 = 10;
     return feature1*2;           // 'feature1' in return statement does not refer to the feature flag.
 }
 
-// empty module-scope blocks are no-op
+// module-scope blocks without `@if` do nothing
 {
     const cannot_be_reached: u32 = 42;
 }
