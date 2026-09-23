@@ -22,10 +22,14 @@ This attribute indicates that the syntax node it decorates can be removed by the
 @if(debug)
 {
     const MAX_DEBUG_OUTPUT: u32 = 1024;
-    var<storage, write> debug_buffer: array<u32, MAX_DEBUG_OUTPUT>;
+    const DEBUG_GROUP: u32 = 1;
+
+    @group(DEBUG_GROUP) @binding(0)
+    var<storage, read_write> debug_buffer: array<u32, MAX_DEBUG_OUTPUT>;
+    @group(DEBUG_GROUP) @binding(1)
     var<storage, read_write> debug_buffer_counter: atomic<u32>;
 
-    function debug_write(debug_value: u32) {
+    fn debug_write(debug_value: u32) {
       let index = min(atomicAdd(&debug_buffer_counter, 1), MAX_DEBUG_OUTPUT - 1);
       debug_buffer[index] = debug_value;
     }
@@ -60,11 +64,6 @@ Quirky examples
 const feature1 = 10;
 @if(feature1) fn main() -> u32 { // 'feature1' in @if does not refer to the const-declaration.
     return feature1*2;           // 'feature1' in return statement does not refer to the feature flag.
-}
-
-// module-scope blocks without `@if` do nothing
-{
-    const cannot_be_reached: u32 = 42;
 }
 ```
 
@@ -135,8 +134,9 @@ Refer to the [updated grammar appendix](#appendix-updated-grammar) for the list 
    * discard statements
    * function call statements
    * const assertion statements
+   * compound global declarations (see below)
 
-3. A new *compound global declaration* syntax node is introduced. It consists of a list of global declarations surrounded by curly brackets (`{ }`) and optionally preceded by *translate-time attributes*.
+3. A new *compound global declaration* syntax node is introduced. It consists of a list of global declarations surrounded by curly brackets (`{ }`). It must be preceded by exactly one *translate-time attribute*.
 
 ## `@if` attribute family
 
@@ -180,7 +180,9 @@ This rule also applies for nested blocks.
 @if(feature_1) {
     var<private> decl1: u32 = 1;
     @if(feature_2) {
-      var<private> decl2: u32 = 2;
+        var<private> decl2: u32 = 2;
+    } @else {
+        const_assert false; // feature_1 requires feature_2
     }
 }
 
@@ -188,7 +190,7 @@ fn f() {
     @if (feature_1) {
         decl1++;
         @if (feature_2) {
-          decl2 = decl1 * decl2;
+            decl2 = decl1 * decl2;
         }
     } 
 }
@@ -212,9 +214,22 @@ Otherwise, if `feature_1` and `feature_2` are false, the code becomes:
 fn f() { }
 ```
 
-> [!NOTE]
-> Since declarations inside a *Compound global declaration* are scoped and unreachable, these blocks have no effect without a *translate-time attribute*.
-> In other words, the language only requires that their content is syntactically valid, but will not have any other effect and will be removed during translation to WGSL.
+Like any other syntax node, blocks can be part of a `@if`/`@elif`/`@else` chain at the same indentation level. An `@if` or `@elif` cannot be chained with a `@elif` or `@else` at a deeper indentation level.
+For instance, the following code is invalid:
+
+```wgsl
+@if(feature_1) {
+    @else { } // error! @else must be preceded by @if or @elif within the curly brackets.
+}
+
+@if(feature_1) {
+    @if(feature_2) { }
+}
+@else { } // this @else is parented with the outer @if(feature_1), not the inner @if(feature_2).
+```
+
+It is a link-time error if a *compound global declaration* is not preceded by a *translate-time attribute*.
+
 
 > [!TIP]
 > In some cases, programmers may want to use double curly brackets (a block within a block) when they wish to keep the inner statements scoped. `@if (feature) {{ scoped statements... }}`
@@ -258,7 +273,7 @@ The following non-terminals are added or modified. Global declarations get exten
     | ...
 
     compound_global_decl:
-      '{' ( global_decl | global_assert | ';' ) * '}'
+      unambiguous_attribute '{' ( global_decl | global_assert | ';' ) * '}'
 
     diagnostic_directive :
       unambiguous_attribute * 'diagnostic' diagnostic_control ';'
