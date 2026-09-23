@@ -1,6 +1,7 @@
 # Conditional Translation
 
 ## Overview
+
 > *This section is non-normative*
 
 Conditional translation is a mechanism to modify the output source code based on parameters passed to the *WESL linker*.
@@ -15,6 +16,24 @@ This attribute indicates that the syntax node it decorates can be removed by the
 // global variables and bindings...
 @if(textured)
 @group(0) @binding(0) var my_texture: texture_2d<f32>;
+
+// module-scope declarations can be grouped in blocks.
+// @if-decorated blocks do not introduce a scope.
+@if(debug)
+{
+    const MAX_DEBUG_OUTPUT: u32 = 1024;
+    const DEBUG_GROUP: u32 = 1;
+
+    @group(DEBUG_GROUP) @binding(0)
+    var<storage, read_write> debug_buffer: array<u32, MAX_DEBUG_OUTPUT>;
+    @group(DEBUG_GROUP) @binding(1)
+    var<storage, read_write> debug_buffer_counter: atomic<u32>;
+
+    fn debug_write(debug_value: u32) {
+      let index = min(atomicAdd(&debug_buffer_counter, 1), MAX_DEBUG_OUTPUT - 1);
+      debug_buffer[index] = debug_value;
+    }
+}
 
 // structs declarations and struct members...
 struct Ray {
@@ -49,6 +68,7 @@ const feature1 = 10;
 ```
 
 ## Definitions
+
 * **Translate-time expression**: A *translate-time expression* is evaluated by the *WESL linker* and eliminated after translation.
   Its grammar is a subset of normal WGSL [expressions](https://www.w3.org/TR/WGSL/#expressions). It must be one of:
   * a *translate-time feature*,
@@ -63,6 +83,7 @@ const feature1 = 10;
 * **Translate-time attribute**: A *translate-time attribute* is parametrized by a *translate-time expression*. It is eliminated after translation but can affect the syntax node it decorates.
 
 ## Location of *Translate-time attributes*
+
 A *translate-time attribute* can appear before the following syntax nodes:
 
 * [directives](https://www.w3.org/TR/WGSL/#directives)
@@ -80,6 +101,7 @@ A *translate-time attribute* can appear before the following syntax nodes:
 > *Translate-time attributes* are not allowed in places where removal of the syntax node would lead to syntactically incorrect code. The current set of *translate-time attribute* locations guarantees that the code is syntactically correct after specialization. This is why *translate-time attributes* are not allowed before expressions.
 
 ### Update to the WGSL grammar
+
 The WGSL grammar allows attributes in several locations where *translate-time attributes* are not allowed (1). Conversely, the WGSL grammar does not allow attributes in several locations where *translate-time attributes* are allowed (2).
 
 Refer to the [updated grammar appendix](#appendix-updated-grammar) for the list of updated grammar non-terminals.
@@ -112,8 +134,12 @@ Refer to the [updated grammar appendix](#appendix-updated-grammar) for the list 
    * discard statements
    * function call statements
    * const assertion statements
+   * compound global declarations (see below)
+
+3. A new *compound global declaration* syntax node is introduced. It consists of a list of global declarations surrounded by curly brackets (`{ }`). It must be preceded by exactly one *translate-time attribute*.
 
 ## `@if` attribute family
+
 The `@if`, `@elif` and `@else` *translate-time attributes* are introduced. The decorated node is only kept if the branch is truthy.
 
 A syntax node may at most have a single `@if`, `@elif` or `@else` attribute. 
@@ -131,7 +157,7 @@ It marks the decorated node for removal if its parameter evaluates to `false` OR
 - An `@else` attribute decorates the next sibling of a syntax node decorated by a `@if` or an `@elif`. It does not take any parameter.
 It marks the decorated node for removal if any of the previous `@if` and `@elif` attribute parameters evaluate to `true`.
 
-Example:
+*Example*
 
 ```wgsl
 @if(feature_1 && (!feature_2 || feature_3))
@@ -142,8 +168,74 @@ fn f() { ... }
 fn f() { ... }
 ```
 
+## Special case for compound statements and compound global declarations
+
+When a *translate-time attribute* decorates a block (either a compound statement in a function, or the new *compound global declaration* at the module level) and evaluates to true, the block is flattened.
+This means that all declarations inside the block are inlined at the block's level, and the curly brackets are removed.
+This rule also applies for nested blocks.
+
+*Example*
+
+```wgsl
+@if(feature_1) {
+    var<private> decl1: u32 = 1;
+    @if(feature_2) {
+        var<private> decl2: u32 = 2;
+    } @else {
+        const_assert false; // feature_1 requires feature_2
+    }
+}
+
+fn f() {
+    @if (feature_1) {
+        decl1++;
+        @if (feature_2) {
+            decl2 = decl1 * decl2;
+        }
+    } 
+}
+```
+
+If `feature_1` and `feature_2` are true, the code above becomes:
+
+```wgsl
+var<private> decl1: u32 = 1;
+var<private> decl2: u32 = 2;
+
+fn f() {
+    decl1++;
+    decl2 = decl1 * decl2;
+}
+```
+
+Otherwise, if `feature_1` and `feature_2` are false, the code becomes:
+
+```wgsl
+fn f() { }
+```
+
+Like any other syntax node, blocks can be part of a `@if`/`@elif`/`@else` chain at the same indentation level. An `@if` or `@elif` cannot be chained with a `@elif` or `@else` at a deeper indentation level.
+For instance, the following code is invalid:
+
+```wgsl
+@if(feature_1) {
+    @else { } // error! @else must be preceded by @if or @elif within the curly brackets.
+}
+
+@if(feature_1) {
+    @if(feature_2) { }
+}
+@else { } // this @else is parented with the outer @if(feature_1), not the inner @if(feature_2).
+```
+
+It is a link-time error if a *compound global declaration* is not preceded by a *translate-time attribute*.
+
+
+> [!TIP]
+> In some cases, programmers may want to use double curly brackets (a block within a block) when they wish to keep the inner statements scoped. `@if (feature) {{ scoped statements... }}`
 
 ## Execution of the conditional translation phase
+
 1. The *WESL linker* is invoked with the list of features to *enable* or *disable*.
 
 2. The source file is parsed.
@@ -159,6 +251,7 @@ fn f() { ... }
 5. The updated source code is passed to the next translation phase. (e.g. import resolution)
 
 ### Incremental translation
+
 In case some features can only be resolved at runtime, a *WESL linker* can *optionally* support feature specialization in multiple passes:
 
 * In the initial passes, the *WESL linker* is invoked with some of the feature flags. It replaces their occurrences in *translate-time attributes* with either `true` or `false`.
@@ -170,9 +263,18 @@ If the *WESL linker* does not support incremental translation, it is a *link-tim
 > *It is not an error to provide unused feature flags to the linker. However, an implementation may choose to display a warning in that case.*
 
 ## Appendix: Updated grammar
+
 The following non-terminals are added or modified. Global declarations get extended to handle general attributes to support future experiments such as `@deprecated`. Everything else is extended with the more restricted `unambiguous_attribute`:
 
 ```grammar
+
+    global_decl :
+      compound_global_decl
+    | ...
+
+    compound_global_decl:
+      unambiguous_attribute '{' ( global_decl | global_assert | ';' ) * '}'
+
     diagnostic_directive :
       unambiguous_attribute * 'diagnostic' diagnostic_control ';'
 
@@ -269,8 +371,6 @@ The following non-terminals are added or modified. Global declarations get exten
 ### Possible extensions
 
 * The `@else` attribute has the nice property that all cases lead to generating a node, and *could* therefore be used in places where the node is required (e.g. expressions)
-
-
 
 * High-complexity *translate-time expressions*: if we end up implementing other *translate-time attributes*, such as loops (e.g. `@for`, `@repeat`), or [translate-time-evaluable](https://zig.guide/language-basics/comptime/) expressions, then we would need to extend the grammar of *translate-time expressions*. It would also affect this proposal.
 
