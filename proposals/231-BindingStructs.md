@@ -30,8 +30,9 @@ struct ParticlesBindGroup {
   @binding(2) particlesB : ptr<storage, Particles, read_write>,
 }
 struct Bindings {
-  st0: SamplerTexture0, // groups 0 and 1 set inside
+  st0: SamplerTexture, // groups 0 and 1 set inside
   @group(2) particles: ParticlesBindGroup, // group 2 set outside
+  workgroup_shared: ptr<workgroup, u32>,
 }
 
 @compute @workgroup_size(64)
@@ -72,7 +73,7 @@ Binding structs can be passed to functions. This works best when combined with t
 
 When an entrypoint uses binding structs, it opts in into the binding struct model. 
 
-When a global binding is used, a warning is emitted. 
+When a global binding is used, an error is emitted. (TODO: Or should this be a warning?)
 This gives tools that rely on binding structs a stronger guarantee.
 It also guides the user towards only using the bindings that were *intended* for the entrypoint.
 Finally, it empowers users of libraries, because one is warned when a libraries internally uses another binding.
@@ -95,10 +96,10 @@ For each entrypoint, we go over the parameters.
 If the parameter's type is a binding struct, then we need to generate the global bindings. 
 A `@group()` attribute is allowed before such parameters. It is interpreted as being before each field which refers to a binding, recursively. It can be overridden by another `@group()` attribute at a deeper layer.
 
-To generate the global bindings, we need to replace the fields that refer to bindings with global bindings.
+To generate the global bindings, we need to replace the fields that refer to bindings with global bindings. The translated fields are removed after translating.
 [sampler](https://www.w3.org/TR/WGSL/#sampler-types) and [texture type](https://www.w3.org/TR/WGSL/#texture-types) fields are translated to a `var generated_name: field_type` binding.
-`ptr<address_space, T, access_mode>` fields are translated to a `var<address_space, access_mode> generated_name: field_type` binding.
-`ptr<address_space, T>` fields are translated to a `var<address_space> generated_name: field_type` binding.
+`ptr<address_space, T, access_mode>` fields are translated to a `var<address_space, access_mode> generated_name: T` binding.
+`ptr<address_space, T>` fields are translated to a `var<address_space> generated_name: T` binding. All address spaces are allowed.
 Attributes are preserved during translations.
 Fields with a type that is another binding struct lead to this procedure being applied recursively. The `@group` attribute is allowed before such fields.
 The remaining fields are left untouched. 
@@ -134,7 +135,7 @@ struct MyBindings {
   linear_sampler: sampler,
 }
 
-@compute
+@fragment
 fn foo(a: MyBindings) {
   let ambient = a.lights[0];
   bar(a);
@@ -155,7 +156,7 @@ var<storage, read> MyBindings_lights: array<vec4f, 8>;
 @group(0) @binding(1)
 var MyBindings_linear_sampler: sampler;
 
-@compute
+@fragment
 fn foo(a: MyBindings) {
   // Inline the usages
   let ambient = MyBindings_lights[0];
@@ -190,7 +191,7 @@ See [#231](https://github.com/webgpu-tools/wesl-spec/issues/231)
 ## Future Extensions
 
 When this becomes a WebGPU proposal, then `layout: 'auto'` should be updated to take advantage of this.
-When two entrypoints use the same binding struct, then `layout: 'auto'` will return compatible layouts.
+When two entrypoints use the same binding structs with the same groups, then `layout: 'auto'` will return compatible layouts.
 This works better in a model where entrypoints do not use any global bindings.
 
 ### Aliasing
