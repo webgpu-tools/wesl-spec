@@ -57,15 +57,15 @@ source file `pbr_types.wesl` in the `bevy_pbr` package.
 # Reference-level explanation
 A WESL program is composed of a tree of WESL modules.
 
-Imports must appear at the beginning of a WESL file. They can bind the name of a module or of an individual "importable item" (see [GLOSSARY](GLOSSARY.md)).
+Imports appear between directives and global declarations in a WESL file. They can bind the name of a module or of an individual "importable item" (see [GLOSSARY](GLOSSARY.md)).
 
 ### Grammar
 
-An import statement is parsed with the following grammar, with spaces and comments allowed between tokens:
+An import statement is parsed with the following grammar:
 
 ```ebnf
 translation_unit:
-| import_statement* global_directive* global_decl* 
+| global_directive* import_statement* module_attribute* global_decl* 
 
 import_statement:  
 | attribute* 'public'? 'import' import_relative? (import_collection | import_path_or_item) ';'
@@ -111,22 +111,16 @@ After collection flattening, each `public import` must resolve to a single item.
 The forms `public import path::*` and `public import some_module;` are not yet
 assigned a meaning and are reserved.
 
-WESL also extends WGSL's `global_directive` rule with a *module attribute*: a `@!`-prefixed attribute that carries module-level metadata. It is used by `@!wildcardable` (see [Wildcard imports](#wildcard-imports)) and is otherwise reserved for future use.
+WESL also extends WGSL with *module attributes*: a `@!`-prefixed attribute that carries module-level metadata. It is used by `@!wildcardable` (see [Wildcard imports](#wildcard-imports)) and is otherwise reserved for future use.
 
 ```ebnf
-global_directive:
-| ... // existing WGSL forms
-| module_attribute_directive
-
-module_attribute_directive:
+module_attribute:
 | '@' '!' ident_pattern_token argument_expression_list? ';'
 ```
 
 A module attribute is written like a WGSL `attribute` with a `!` immediately
 after the `@`, and is terminated with `;`; `ident_pattern_token` and
-`argument_expression_list` are the WGSL rules. Like other global directives,
-module attributes appear after any imports and before any global declarations,
-and apply to the module they appear in.
+`argument_expression_list` are the WGSL rules.
 
 ### Import bindings
 
