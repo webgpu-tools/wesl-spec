@@ -108,7 +108,7 @@ Fields with a type that is another binding struct lead to this procedure being a
 The remaining fields are left untouched. 
 The generated names must be unique enough to avoid collisions. They can be shared across different entrypoints, but need not be.
 
-In each entrypoint, field accesses are then rewritten to use these global bindings.
+In each entrypoint, field accesses are then rewritten to use these global bindings. An address-of operator is inserted at each field access to ensure that the type stays a `ptr`. 
 
 After translating all entrypoints, we need to translate every function.
 For each function parameter with a binding struct type, we need to pass along the fields that were replaced.
@@ -163,8 +163,8 @@ var foo_a_linear_sampler: sampler;
 @fragment
 fn foo(a: MyBindings) {
   // Inline the usages
-  let ambient = foo_a_lights[0];
-  bar(a, foo_a_lights, foo_a_linear_sampler);
+  let ambient = (&foo_a_lights)[0];
+  bar(a, &foo_a_lights, &foo_a_linear_sampler);
 }
 
 // Explicitly pass along the translated parameters
