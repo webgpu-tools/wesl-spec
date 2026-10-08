@@ -29,12 +29,12 @@ struct SamplerTexture {
   @group(1) @binding(0) texture0: ...;
 }
 struct ParticlesBindGroup {
-  @binding(1) particlesA : ptr<storage, Particles>,
-  @binding(2) particlesB : ptr<storage, Particles, read_write>,
+  @group(2) @binding(1) particlesA : ptr<storage, Particles>,
+  @group(2) @binding(2) particlesB : ptr<storage, Particles, read_write>,
 }
 struct Bindings {
-  st0: SamplerTexture, // groups 0 and 1 set inside
-  @group(2) particles: ParticlesBindGroup, // group 2 set outside
+  st0: SamplerTexture,
+  particles: ParticlesBindGroup,
   workgroup_shared: ptr<workgroup, u32>,
 }
 
@@ -97,14 +97,13 @@ We go over each entrypoint.
 For each entrypoint, we go over the parameters.
 
 If the parameter's type is a binding struct, then we need to generate the global bindings. 
-A `@group()` attribute is allowed before such parameters. It is interpreted as being before each field which refers to a binding, recursively. It can be overridden by another `@group()` attribute at a deeper layer.
 
 To generate the global bindings, we need to replace the fields that refer to bindings with global bindings. The translated fields are removed after translating.
 [sampler](https://www.w3.org/TR/WGSL/#sampler-types) and [texture type](https://www.w3.org/TR/WGSL/#texture-types) fields are translated to a `var generated_name: field_type` binding.
 `ptr<address_space, T, access_mode>` fields are translated to a `var<address_space, access_mode> generated_name: T` binding.
 `ptr<address_space, T>` fields are translated to a `var<address_space> generated_name: T` binding. All address spaces are allowed.
 Attributes are preserved during translations.
-Fields with a type that is another binding struct lead to this procedure being applied recursively. The `@group` attribute is allowed before such fields.
+Fields with a type that is another binding struct lead to this procedure being applied recursively.
 The remaining fields are left untouched. 
 The generated names must be unique enough to avoid collisions. They can be shared across different entrypoints, but need not be.
 
@@ -120,11 +119,7 @@ At the end, empty structs are removed to comply with WGSLs restriction of no emp
 
 > [!NOTE]
 > This desugaring mostly assumes `unrestricted_pointer_parameters`.
-> It is equally possible to globally trace each unique reference to binding struct fields,
-> and rewrite them to refer to the generated global binding.
-> For usages with multiple binding structs this requires actually tracing the usages.
-> A call to `my_func(some_bindings)` and `my_func(more_bindings)` can have the same type but refer to different bindings.
-> To deal with this case, `my_func` either needs to be monomorphized or inlined. 
+> Since the types are guaranteed to be unique for a given entrypoint, it is equally valid for an implementation to rewrite all field accesses to refer to the global bindings.
 
 ### Example
 
@@ -174,19 +169,6 @@ fn bar(a: MyBindings, a_0: ptr<storage, array<vec4f, 8>, read>, a_1: sampler) {
 }
 ```
 
-## TODO: Constrained Variants
-
-There are some constraints which lead to simpler implementations, but worse usability.
-
-We could disallow the `@group(2)` before fields that have a struct type.
-This results in a binding structs generation algorithm that only looks at individual structs, instead of the recursive walk.
-
-The two constraints of
-1. Each pair of a group and binding number must be unique.
-1. `@group` is not allowed before a field that has a struct type.
-
-combine to make the `unrestricted_pointer_parameters` special case go away. Every struct type is now completely unique for a given entrypoint.
-
 ## Design considerations
 
 This feature allows for much better reflection based codegen, as it gives a *name* to a set of bindings.
@@ -197,6 +179,18 @@ See [#231](https://github.com/webgpu-tools/wesl-spec/issues/231)
 When this becomes a WebGPU proposal, then `layout: 'auto'` should be updated to take advantage of this.
 When two entrypoints use the same binding structs with the same groups, then `layout: 'auto'` will return compatible layouts.
 This works better in a model where entrypoints do not use any global bindings.
+
+### Pipeline overridable constants
+
+A future proposal can give the same treatment to pipeline overridable constants.
+A useful piece of inspiration is https://www.sebastianaaltonen.com/blog/no-graphics-api#:~:text=Static%20constants
+
+
+### WebGPU API for calling shaders
+
+We may be able to improve the WebGPU API by making shader calls more like function calls. A researcher at the TU Vienna suggested the following
+
+> WebGPU could have done something like cuda and do encoder.draw(shader, shaderArguments) and automatically connect the arguments on host side with the arguments/bindings of the shader.
 
 ### Aliasing
 
@@ -225,15 +219,34 @@ However, this comes with certain downsides
 Instead of allowing aliasing, we propose to make it possible to *construct binding structs* in WGSL. 
 This can be done in a future extension.
 
-### Pipeline overridable constants
+### Incomplete binding structs
 
-A future proposal can give the same treatment to pipeline overridable constants.
-A useful piece of inspiration is https://www.sebastianaaltonen.com/blog/no-graphics-api#:~:text=Static%20constants
+The original sketch included incomplete binding structs, where only the `@binding` numbers are set in a struct, and the `@group` is set externally.
 
+```wgsl
+struct Light {
+  @binding(0) foo: u32,
+  @binding(1) bar: u32,
+}
 
-### WebGPU API for calling shaders
+struct Bindings {
+    @group(0) interior_lights: Lights,
+    @group(1) exterior_lights: Lights,
+}
+```
 
-We may be able to improve the WebGPU API by making shader calls more like function calls. A researcher at the TU Vienna suggested the following
+This syntactic sugar is not a part of this proposal, due to it not have any strong use-cases. We chose to not include it, as it significantly simplifies codegen and encourages authors to experiment more with alternative variants of organizing their groups. 
 
-> WebGPU could have done something like cuda and do encoder.draw(shader, shaderArguments) and automatically connect the arguments on host side with the arguments/bindings of the shader.
+Instead of that, we propose *const generics* as a way of enabling better reuse of binding struct types with different layouts. This reuses a more generally useful feature to cover this use-case.
 
+```wgsl
+struct Light<const g: u32> {
+  @group(g) @binding(0) foo: u32,
+  @group(g) @binding(1) bar: u32,
+}
+
+struct Bindings {
+    interior_lights: Lights<0>,
+    exterior_lights: Lights<1>,
+}
+```
