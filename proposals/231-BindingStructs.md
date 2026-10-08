@@ -1,8 +1,11 @@
 # Binding Structs
 
-* Status: Draft
-* Created: 2026-09-29
-* Issue: [#231](https://github.com/webgpu-tools/wesl-spec/issues/231)
+- **Status**: Proposal
+* **Discussion**: [#231](https://github.com/webgpu-tools/wesl-spec/issues/231)
+- **Extension marker**: `wesl_binding_structs`
+- **Implementations**: none
+
+See also [gpuweb#4957 with a sketch of the proposal](https://github.com/gpuweb/gpuweb/issues/4957#issuecomment-2471702174) (design background).
 
 # Overview
 
@@ -76,8 +79,8 @@ When an entrypoint uses binding structs, it opts in into the binding struct mode
 When a global binding is used, an error is emitted. (TODO: Or should this be a warning?)
 This gives tools that rely on binding structs a stronger guarantee.
 It also guides the user towards only using the bindings that were *intended* for the entrypoint.
-Finally, it empowers users of libraries, because one is warned when a libraries internally uses another binding.
 A library internally using a binding is usually not intentional and leaks out into the WebGPU host interface.
+Finally, it empowers users of libraries, because one is warned when a libraries internally uses another binding.
 
 ## Implementation
 
