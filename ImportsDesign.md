@@ -93,19 +93,19 @@ benefits while limiting the risk:
 
 ## Alternatives
 
-## TypeScript-like imports
+### TypeScript-like imports
 The Bevy team, with a large shader codebase, had a few wishes
 
 * A short syntax
 * Inline usage
 
-## Rust-like imports
+### Rust-like imports
 To fully copy Rust's importing syntax, one needs something akin to a `mod` statement.
 The rules have carefully been architected to imitate the Rust style, while not requiring an explicit `mod` statement.
 
 In Rust, `use foo::bar;` could either map to "import an item called `bar` from `foo.rs`" or it could map to "import the module `foo/bar.rs`". Rust uses the explicit `mod` statement to disambiguate. We instead decide at each reference: a bare `bar` is the item, and `bar::baz` reaches into the module.
 
-### Composing shader code as strings at runtime
+#### Composing shader code as strings at runtime
 One alternative is to compose shader code at runtime
 by simply joining together strings with WGSL code, perhaps
 with some string templating for flexibility.
