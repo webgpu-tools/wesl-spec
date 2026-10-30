@@ -147,16 +147,16 @@ By convention `@builtin` parameters come last in the parameter list.
 
 ### Pass arguments
 
-Do code passes arguments to entry points with dispatch syntax: 
-`@dispatch(1u) recordShift(...)` for a compute entry point, 
-or a plain call for a fragment entry point (see
+Do code passes arguments to entry points with call syntax:
+`@dispatch(1u) recordShift(...)` for a compute entry point,
+or `@draw show(...)` for a fragment entry point (see
 [Draw with a fragment shader](#draw-with-a-fragment-shader)). The
 caller supplies every parameter except the `@builtin` ones.
 
 ## Draw with a fragment shader
 
-In wgsl-play, call a fragment entry point without `@dispatch` to draw to
-the canvas. Fragment entry points take
+In wgsl-play, call a fragment entry point with `@draw` to draw to
+the canvas: `@draw show(current);`. Fragment entry points take
 [parameters](#add-parameters-to-entry-points) like compute entry points.
 wgsl-play supplies a vertex stage that covers the canvas, so the fragment
 shader's only pipeline input is `@builtin(position)`.
@@ -164,7 +164,7 @@ shader's only pipeline input is `@builtin(position)`.
 This module advances 64 counters each frame and draws them as a slowly
 scrolling wave. The do vars preserve the two buffer roles between frames.
 
-[Example on wgsl-play.dev](https://wgsl-play.dev/#v1=N4IgDgTg9gVgpgYwC4gFygO5wM4BsDKECaoYAhggNZkDmcqqAtmQJYB2aIEcAjgK4tu2AARY8AfQAmUcQCNcUKtgA0onLilwAZnAjdJc9pPY1sAbgA6bKwDcyEADzYkUCLTiruZAxggskcAB8wjR+kgCCqML2bgCeDnwAzABMqgBsACyBlmx2js6u7p5w3uK+-kEhYQBCUTFk8UmpwpnZVtLCecIIfHpwbEjCALzCAGShLBE5HV1scAAegyPjNTntUMIQfGwAFACUwsBWwsIAAsbY5EgIABY7AIx8B952bAhwOz19A6pzi3s5E64OCDJCMMDDbq9bgDMxQ75LYR-JBw5GQsFgOEAeixwmwGDIENkfC0OggmygwOwxzxNygGE+0P6SABVgAvlYrKcEFBwXwAmcMK5KKEoHwwOJsCwAF4fTJ7KxaNjRSSvd47bBEKJgJD5FxuOiqeqNFKBQLKGknK3WyTObW6pz6orRPQNBKm4qlcoBc2W63W07Eli4JDsHY0BSyMgadg2RRkUNQNjiSYHSZRGyIRJPQ4021IADakwAdPMALqQzUIIuSUsVgDUwkeOQ51jYpy0BsYzMVyuwdIZ71wuGw9r1hUNLri7uSZotyv9J0DAhDYbAUClibYB3Xo86iAyWgOAFpgqcFAgEywkzsAAwHTMIQ+5hfAwYsSE7Jo7Xelg64gAOHMAFIWgyPhsUA48wBYeY4FwYQozYW0aTfWlvDgSFb2LABWYRG2wvCACo8TDLQUk+eCRyLBthA-EjwIOEjsNvRJWQXbgkF6ZVH0PDUbgw1R+0E9DJA8Jti3vFsrBANllC4KAoCQABZKBJD4YEADkyG7ThmHYEB5J5ZD-GvNhsBINk5JAUMkGBThpGPeRFEobBj0kNwMFkoA):
+[Example on wgsl-play.dev](https://wgsl-play.dev/#v1=N4IgDgTg9gVgpgYwC4gFygO5wM4BsDKECaoYAhggNZkDmcqqAtmQJYB2aIEcAjgK4tu2AARY8AfQAmUcQCNcUKtgA0onLilwAZnAjdJc9pPY1sAbgA6bKwDcyEADzYkUCLTiruZAxggskcAB8wjR+kgCCqML2bgCeDnwAzABMqgBsACyBlmx2js6u7p5w3uK+-kEhYQBCUTFk8UmpwpnZVtLCecIIfHpwbEjCALzCAGShLBE5HV1scAAegyPjNTntUMIQfGwAFACUwsBWwsIAAsbY5EgIABY7AIx8B952bAhwOz19A6pzi3s5E64OCDJCMMDDbq9bgDMxQ75LYR-JBw5GQsFgOEAeixwmwGDIENkfC0OggmygwOwxzOkjcGDxNygGE+0P6SABVgAvlYrKcEFBwXwAmcMK5KKEoHwwOJsCwAF4fTJ7KxaNjRSSvd47bBEKJgJD5FxuOiqeqNFKBQLKGknO32yTOfWGpzGorRPQNBKW4qlcoBa22+3207Eli4JDsHY0BSyMgadg2RRkSNQNjiSYHSZRGyIRJPQ40x1IADakwAdPMALqQ3UIMuSSs1gDUwkeOR51jYpy0JsY7NV6uwTJZ71wuGwzqNhVNHri3uSVpt6uDJ1DAgjUbAUDlqbYB23k86iAyWgOAFpgqcFAgUyw0zsAAwHXMIU+FlfAwYsSE7Jo7Q9KwOXEAA4CwAUhaDI+GxUDzzAFh5jgXBhDjNhHRpL9GW8OBIUfcsAFZhFbfCiIAKjxKMtBST5kInMsW2EH8KOgg4KPwx9Ek5FduCQXp1VfU8dRuHDVGHUTsMkDw23LZ8OysEAuWULgoCgJAAFkoEkPhgQAOTIftOGYdgQGUgV0P8e82GwEguSUkBIyQYFOGkc95EUShsHPOkyAwRSgA):
 
 ```wgsl
 requires wesl_do_blocks, wesl_deferred_bindings;
@@ -177,7 +177,7 @@ do var next = &gridB;
 do run() {
   @dispatch(1u) advance(current, next);
   let tmp = current; current = next; next = tmp; // swap buffer roles
-  show(current);
+  @draw show(current);
 }
 
 @compute @workgroup_size(64)
@@ -363,8 +363,7 @@ Do code differs from WGSL in some ways:
 
 Not supported yet:
 
-- Vertex shaders 
-- Change to `@draw` syntax to call fragment and vertex shaders
+- Vertex shaders (planned: `@draw(counts)` with a vertex entry point)
 - Return values from do blocks.
 - Calling const shader functions from do blocks. 
 - Operators on whole vectors or matrices. Operators work on scalars.
