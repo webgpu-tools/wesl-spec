@@ -52,13 +52,13 @@ and uses the lowest binding numbers not already in use.
 | --- | --- |
 | Neither `@group` nor `@binding` | The system assigns group and binding numbers. |
 | `@group(g) @binding(n)` | Keeps both. The system skips `n` when `g` is 0. |
-| `@binding(n)` alone | Keeps `n`. The system adds `@group(0)` and skips `n`. |
+| `@binding(n)` alone | Keeps `n`. The system adds the group of the resources without numbers (usually 0) and skips `n`. |
 | `@group(g)` alone | Error: add a binding number or remove the group. |
 
 ## Binding structs
 
-A **binding struct** groups resources into a bind group. The entry-point
-parameter's `@group(n)` sets the group. 
+A **binding struct** groups resources into a bind group. The system
+picks the group, or the entry-point parameter's `@group(n)` pins it. 
 
 Writing binding structs lets you share bind groups between pipelines, which
 is good for performance. Binding structs also fix an instability in current
@@ -133,15 +133,33 @@ Plain values such as `u32` are not allowed in a binding struct. Pass them as
 
 ### Groups and binding numbers
 
-An entry point that takes a binding struct must annotate that parameter
-with `@group(n)` for now, as `advance` does above.
+A binding struct describes one bind group. Entry points that take the same
+struct share its bind group layout. A struct has one group number per link,
+so one bind group serves every pipeline from the link that takes the struct.
+
+The system assigns the group numbers:
+
+1. Resources without numbers take the lowest free group, usually 0.
+2. Each binding struct then takes the lowest group that no other struct in
+   the same pipeline uses. Structs that never share a pipeline may share a
+   group number. Structs taken by more entry points go first, so the most
+   widely shared struct gets the lowest number; ties go in name order.
+
+A compute entry point is its own pipeline. For render, a `do` block's
+draw says which vertex and fragment entry points pair. Without one, the
+system assumes any vertex entry point in the link may pair with any
+fragment entry point.
+
+Users can force a group with `@group(n)` on
+the parameter, as `advance` does above. Only applications can force select
+a group, libraries may not. A group places the struct for the
+whole link, including library entry points that take the same struct.
 
 A binding struct field with `@binding(n)` uses that number in the group.
 Other fields take the lowest free binding numbers in declaration order.
 Fields can't have `@group`, the group comes from the parameter.
 
-A binding struct describes one bind group. Entry points that take the same
-struct share its bind group layout. Two binding structs can't have the same group.
+Two binding structs in one pipeline can't have the same group.
 A module-scope variable can't declare a binding in a binding
 struct's group.
 
@@ -195,11 +213,9 @@ The `@buffer` annotation is now retired.
 - Binding struct fields for uniform buffers (`ptr<uniform, T>`), filled from
   a do block.
 - Binding struct fields for textures and samplers.
-- Binding structs in group 0. Today a binding struct needs a group other
-  than 0, which holds the resources without binding numbers.
-- Binding struct parameters without group annotations.
-- A binding struct taken at different groups by different entry points.
-  (Today every entry point that takes a struct must use the same group.)
+- Group assignment for binding structs.
+  (Currently every binding struct parameter needs an `@group` annotation, 
+  and group 0 is reserved for the resources without binding numbers.
 - Binding structs declared in a different module from their entry points.
   Today the struct and every entry point that takes it share a module, and
   if that module is imported, the main module must also import or refer to
