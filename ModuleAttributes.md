@@ -21,13 +21,13 @@ public fn cross2(a: vec2f, b: vec2f) -> f32 { return a.x*b.y - a.y*b.x; }
 
 # Guide-level explanation
 
-WESL extends WGSL with *module attributes*: a `@!`-prefixed attribute that carries module-level metadata. It is used by `@!wildcardable` (see [Wildcard imports](Imports.md#wildcard-imports)) and is otherwise reserved for future use.
+WESL extends WGSL with *module attributes*: `@!`-prefixed attributes that carries module-level metadata. A module attribute applies to the module it appears in. It is used by `@!wildcardable` (see [Wildcard imports](Imports.md#wildcard-imports)) and is otherwise reserved for future use.
 
 ### Grammar
 
 ```ebnf
 translation_unit:
-| global_directive* import_statement* module_attribute* global_decl* 
+| global_directive* import_statement* module_attribute* (global_decl | global_assert | ';')*
 
 module_attribute:
 | '@' '!' ident_pattern_token argument_expression_list? ';'
@@ -37,4 +37,4 @@ A module attribute is written like a WGSL `attribute` with a `!` immediately
 after the `@`, and is terminated with `;`; `ident_pattern_token` and
 `argument_expression_list` are the WGSL rules.
 
-The grammar here is also mirrored in [Import.md](Imports.md).
+The grammar here is also mirrored in [Imports.md](Imports.md).

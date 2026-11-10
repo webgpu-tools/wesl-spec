@@ -74,7 +74,7 @@ source file `pbr_types.wesl` in the `bevy_pbr` package.
 # Reference-level explanation
 A WESL program is composed of a tree of WESL modules.
 
-Imports appear between directives and global declarations in a WESL file. They can bind the name of a module or of an individual "importable item" (see [GLOSSARY](GLOSSARY.md)).
+Imports appear near the top of a WESL file (see grammar). They can bind the name of a module or of an individual "importable item" (see [GLOSSARY](GLOSSARY.md)).
 
 ### Grammar
 
@@ -82,7 +82,7 @@ An import statement is parsed with the following grammar:
 
 ```ebnf
 translation_unit:
-| global_directive* import_statement* module_attribute* global_decl* 
+| global_directive* import_statement* module_attribute* (global_decl | global_assert | ';')*
 
 import_statement:  
 | attribute* 'public'? 'import' import_relative? (import_collection | import_path_or_item) ';'
