@@ -85,10 +85,10 @@ translation_unit:
 | global_directive* import_statement* module_attribute* (global_decl | global_assert | ';')*
 
 import_statement:  
-| attribute* 'public'? 'import' import_relative? (import_collection | import_path_or_item) ';'
+| attribute* 'public'? 'import' import_relative (import_collection | import_path_or_item) ';'
 
 import_relative:
-| 'package' '::' | 'super' '::' ('super' '::')*
+| 'package' '::' | 'super' '::' ('super' '::')* | ident '::'
 
 import_path_or_item:
 | ident '::' (import_collection | import_path_or_item) 
@@ -352,7 +352,7 @@ We introduce
 
 ```ebnf
 full_ident:
-| import_relative? ident ('::' ident)*
+| ident | (import_relative ident ('::' ident)*)
 ```
 
 and then replace `ident` with `full_ident` in the following places:
