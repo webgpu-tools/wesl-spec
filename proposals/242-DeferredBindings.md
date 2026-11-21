@@ -38,6 +38,7 @@ buffers by name.
   - [Fields and arguments](#fields-and-arguments)
   - [Groups and binding numbers](#groups-and-binding-numbers)
   - [Passing fields onward](#passing-fields-onward)
+  - [Binding structs must be visible](#binding-structs-must-be-visible)
 - [Deferred bindings in wgsl-play and wgsl-test](#deferred-bindings-in-wgsl-play-and-wgsl-test)
 - [Implementation notes](#implementation-notes)
 - [Future work](#future-work)
@@ -173,6 +174,12 @@ Do code can pass a field to another entry point's buffer parameter directly,
 e.g. `@dispatch(1u) scale(particles.pos)`, with no `&` and no language
 feature needed.
 
+### Binding structs must be visible
+
+A `public` entry point can take only `public` binding structs.
+Host code typically calls `getBindGroupLayout()` with the name of
+the binding struct, so the name of the struct needs to be visible to host code.
+
 ## Deferred bindings in wgsl-play and wgsl-test
 
 [wgsl-play](README.md) and [wgsl-test](../wgsl-test) create and bind 
@@ -284,6 +291,8 @@ info.bindGroups.ParticleBindings.group; // -> 1
 ```
 
 The names are the ones the main WESL module uses (including e.g. `as` renames).
+Binding structs may also be referenced by declaration path.
+`module.getBindGroupLayout("package::particles::ParticleBindings")`.
 
 In wesl-js's internal wesl-gpu library, `bindingStructLayout()` 
 and `bindingStructBindGroup()` do most of the necessary name based lookup 
