@@ -68,6 +68,26 @@ Binding structs cannot be constructed in user code. Instead they are provided to
 
 Binding structs can be passed to functions. This works best when combined with the [unrestricted_pointer_parameters language feature](https://www.w3.org/TR/WGSL/#language_extension-unrestricted_pointer_parameters). 
 
+Binding structs also offer conveniences for `@group()` and `@binding()` attributes.
+A single `@group()` written above a struct sets the default for every binding in it.
+`@binding()` has a default, which is simply counting along.
+The first binding automatically has `@binding(0)`. 
+Every successive binding gets `@binding(n + 1)` where `n` is the binding number of the previous binding.
+
+```wgsl
+@group(0)
+struct MyInputs {
+  @location(0) 
+  x: vec4<f32>,
+  @builtin(front_facing) 
+  y: bool,
+  
+  @binding(1) 
+  particlesA : ptr<storage, Particles>,
+  particlesB : ptr<storage, Particles, read_write>,
+}
+```
+
 ### Restrictions on global bindings
 
 When an entrypoint uses binding structs, it opts in into the binding struct model. 
@@ -90,21 +110,31 @@ Before desugaring, the following rules are validated
 - An entrypoint is has unique bindings: each pair of (binding group, binding number) must be unique. This rule is applied recursively.
 - The `function` address space is not allowed in binding structs.
 
-We go over each entrypoint. 
-For each entrypoint, we go over the parameters.
+We go over each binding struct.
+Binding structs are structs that contain at least one field of a binding type (sampler, texture, ptr types or other binding structs).
+To generate the global bindings, we need to replace the fields that refer to bindings with global bindings. 
+The translated fields are removed after translating.
 
-If the parameter's type is a binding struct, then we need to generate the global bindings. 
-
-To generate the global bindings, we need to replace the fields that refer to bindings with global bindings. The translated fields are removed after translating.
 [sampler](https://www.w3.org/TR/WGSL/#sampler-types) and [texture type](https://www.w3.org/TR/WGSL/#texture-types) fields are translated to a `var generated_name: field_type` binding.
 `ptr<address_space, T, access_mode>` fields are translated to a `var<address_space, access_mode> generated_name: T` binding.
-`ptr<address_space, T>` fields are translated to a `var<address_space> generated_name: T` binding. All address spaces are allowed.
-Attributes are preserved during translations.
+`ptr<address_space, T>` fields are translated to a `var<address_space> generated_name: T` binding.
 Fields with a type that is another binding struct lead to this procedure being applied recursively.
 The remaining fields are left untouched. 
-The generated names must be unique enough to avoid collisions. They can be shared across different entrypoints, but need not be.
+The generated names must simply be unique enough to avoid collisions.
 
-In each entrypoint, field accesses are then rewritten to use these global bindings. An address-of operator is inserted at each field access to ensure that the type stays a `ptr`. 
+Generated bindings inherit their fields' attributes. 
+Resource fields need `@group` and `@binding` attributes:
+1. Start with the resource field's attributes.
+2. If `@group` is missing, use the struct's `@group`, if present.
+3. If `@binding` is missing, use `@binding(0)` for the first binding. 
+4. If `@binding` is missing, use `@binding(n_prev + 1)` for all subsequent bindings. `n_prev` is the binding number of the previous resource field in the struct.
+
+After the translation, all `@group` attributes are removed from binding structs. 
+
+Now we go over each entrypoint. 
+For each entrypoint, we go over the parameters.
+If the parameter's type is a binding struct, then we have generated the global bindings. 
+Field accesses are rewritten to use these global bindings. An address-of operator is inserted at each field access to ensure that the type stays a `ptr`. 
 
 After translating all entrypoints, we need to translate every function.
 For each function parameter with a binding struct type, we need to pass along the fields that were replaced.
@@ -112,13 +142,13 @@ Each replaced field is turned into an explicit parameter.
 The field accesses are rewritten to use the explicit parameters.
 And each function call is rewritten to explicitly pass those parameters.
 
-At the end, empty structs are removed to comply with WGSLs restriction of no empty types. This affects both the generated structs and the function parameters.
+At the end, empty binding structs and their usages are removed to comply with WGSLs restriction of no empty types.
 
 > [!NOTE]
 > This desugaring mostly assumes `unrestricted_pointer_parameters`.
 > Since the types are guaranteed to be unique for a given entrypoint, it is equally valid for an implementation to rewrite all field accesses to refer to the global bindings.
 
-### Example
+### Examples
 
 ```wgsl
 // A binding struct
@@ -166,6 +196,38 @@ fn bar(a: MyBindings, a_0: ptr<storage, array<vec4f, 8>, read>, a_1: sampler) {
 }
 ```
 
+An example for the defaults is here. The following example
+```wgsl
+@group(1)
+struct BindingsWithDefaults {
+    previous_gbuffer: texture_2d<u32>,
+
+    previous_depth_buffer: texture_depth_2d,
+
+    @binding(15)
+    reservoirs_a: ptr<storage, array<Reservoir>, read_write>,
+
+    @group(3)
+    reservoirs_b: ptr<storage, array<Reservoir>, read_write>,
+}
+```
+
+is equivalent to the following
+
+```wgsl
+struct BindingsWithDefaults {
+    @group(1) @binding(0)
+    previous_gbuffer: texture_2d<u32>,
+    @group(1) @binding(1)
+    previous_depth_buffer: texture_depth_2d,
+    @group(1) @binding(15)
+    reservoirs_a: ptr<storage, array<Reservoir>, read_write>,
+    @group(3) @binding(16)
+    reservoirs_b: ptr<storage, array<Reservoir>, read_write>,
+}
+```
+
+
 ## Design considerations
 
 Assigning to `ptr` fields of a struct is disallowed by the WGSL spec.
@@ -174,10 +236,6 @@ None of the binding types satisfy that.
 
 This feature allows for much better reflection based codegen, as it gives a *name* to a set of bindings.
 See [#231](https://github.com/webgpu-tools/wesl-spec/issues/231)
-
-## Open questions
-
-Does allowing `ptr<private>` in binding structs make sense? You aren't passing a `var<private>` to the shader.
 
 ## Future Extensions
 
