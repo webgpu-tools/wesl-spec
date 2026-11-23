@@ -68,10 +68,6 @@ Binding structs cannot be constructed in user code. Instead they are provided to
 
 Binding structs can be passed to functions. This works best when combined with the [unrestricted_pointer_parameters language feature](https://www.w3.org/TR/WGSL/#language_extension-unrestricted_pointer_parameters). 
 
-<!-- 
-- readability, only the entrypoint needs to be read to understand which bindings are used.
-- no idea if aliasing should be allowed -->
-
 ### Restrictions on global bindings
 
 When an entrypoint uses binding structs, it opts in into the binding struct model. 
@@ -92,6 +88,7 @@ Before desugaring, the following rules are validated
 - An entrypoint that uses binding structs does not use any other bindings.
 - An entrypoint is allowed to have at most one `ptr<immediate, T>`. This rule is applied recursively.
 - An entrypoint is has unique bindings: each pair of (binding group, binding number) must be unique. This rule is applied recursively.
+- The `function` address space is not allowed in binding structs.
 
 We go over each entrypoint. 
 For each entrypoint, we go over the parameters.
@@ -173,6 +170,10 @@ fn bar(a: MyBindings, a_0: ptr<storage, array<vec4f, 8>, read>, a_1: sampler) {
 
 This feature allows for much better reflection based codegen, as it gives a *name* to a set of bindings.
 See [#231](https://github.com/webgpu-tools/wesl-spec/issues/231)
+
+## Open questions
+
+Does allowing `ptr<private>` in binding structs make sense? You aren't passing a `var<private>` to the shader.
 
 ## Future Extensions
 
