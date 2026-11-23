@@ -168,6 +168,10 @@ fn bar(a: MyBindings, a_0: ptr<storage, array<vec4f, 8>, read>, a_1: sampler) {
 
 ## Design considerations
 
+Assigning to `ptr` fields of a struct is disallowed by the WGSL spec.
+The [simple assignment](https://www.w3.org/TR/WGSL/#simple-assignment-section) rules require the right-hand side to be a constructible type.
+None of the binding types satisfy that.
+
 This feature allows for much better reflection based codegen, as it gives a *name* to a set of bindings.
 See [#231](https://github.com/webgpu-tools/wesl-spec/issues/231)
 
